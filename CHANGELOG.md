@@ -1,22 +1,9 @@
-# Lista zmian
+# 4.0 — ULTIMATE EDITION (wydanie Portable i Setup)
 
-## 3.1 — PRO EDITION + PREMIUM TIMER
-
-- Panel właściciela EXE do tworzenia kodów Premium bez instalacji Pythona: `YVD_PREMIUM_OWNER.exe`.
-- Gotowe okresy kodów: 1, 7, 30, 90, 365 dni, bezterminowo.
-- Dowolny własny dodatni okres w dniach, godzinach i minutach.
-- Precyzyjna ważność kodów v2 — data i godzina UTC, liczone od wygenerowania.
-- Licznik pozostałego czasu w zakładce Premium (dni/godziny/minuty/sekundy) i skrócony stan w górnym pasku programu.
-- Odświeżanie licznika co sekundę, ostrzeżenie na 24 godziny przed wygaśnięciem.
-- Automatyczne wygaśnięcie licencji i wyłączenie nowych funkcji Premium bez restartu.
-- Kompatybilność ze starszymi kodami podpisanymi dla YVD 3.0 oraz z historią/kolejką z 2.0/3.0.
-- Osobny artefakt GitHub Actions dla generatora właściciela, bez dołączania prywatnego PEM.
-- Dodatkowe testy generatora, czasu i podpisów. Razem 40 testów.
-
-## 3.0 — PRO EDITION
-
-Turbo Pro, zarządzanie kolejką, pauza/wznowienie, przycinanie, konwersja, historia z wyszukiwarką, trzy motywy, powiadomienia Windows i podpisane kody Premium.
-
-## 2.0 — ULTRA DOWNLOADER
-
-Playlisty, miniatury, wiele zadań, automatyczna jakość, historia, nowy interfejs, aktualizacje silnika, napisy, przyspieszenie fragmentów.
+- Dodano folder Portable ZIP z calym PyInstaller `_internal` i narzedziami zewnetrznymi.
+- Dodano instalator per-user Inno Setup z menu Start, opcjonalnym pulpitem i odinstalowaniem.
+- Nowy workflow GitHub Actions z trzema artefaktami: Portable, Setup, Premium Owner.
+- Zmieniono tylko oznaczenie wersji w interfejsie na ULTIMATE EDITION 4.0; pasek Windows nadal wyswietla YOUTUBE VIDEO DOWNLOADER.
+- Zachowano modul funkcjonalny `core.py`, `licensing.py`, ustawienia `%LOCALAPPDATA%` i kody Premium.
+- Uzywany wariant FFmpeg LGPL (zamiast GPL).
+- Dodano testy dystrybucji i dokumentacje.

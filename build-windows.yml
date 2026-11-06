@@ -1,4 +1,4 @@
-name: Build YouTube Downloader 3.1 PREMIUM TIMER EXE
+name: Build YOUTUBE VIDEO DOWNLOADER 4.0 - Portable + Setup
 
 on:
   workflow_dispatch:
@@ -9,27 +9,33 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
-      - name: Pobierz repozytorium
+      - name: Pobierz pliki projektu
         uses: actions/checkout@v6
 
-      - name: Skonfiguruj Python 3.12
+      - name: Python 3.12 64-bit
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          architecture: 'x64'
 
-      - name: Instalacja zaleznosci
+      - name: Kontrola plikow i zaleznosci
+        shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($name in @('app.py', 'gui.py', 'core.py', 'licensing.py', 'requirements.txt', 'installer/YOUTUBE_VIDEO_DOWNLOADER.iss', 'tools/premium_generator_gui.py', 'tools/issue_premium_code.py')) {
+            if (-not (Test-Path $name -PathType Leaf)) { throw "Brakuje pliku $name. Przeslij zawartosc calego ZIP, zachowujac foldery." }
+          }
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Uruchom testy kodu
+      - name: Testy funkcji 1.0-4.0 i licencji Premium
         run: python -m unittest discover -s tests -v
 
-      - name: Pobierz oficjalne narzedzia Windows
+      - name: Pobierz narzedzia yt-dlp, Deno, FFmpeg LGPL
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -38,69 +44,120 @@ jobs:
 
           Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile 'vendor/yt-dlp.exe'
           Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS' -OutFile 'vendor/SHA2-256SUMS'
-          $checksumLine = Get-Content 'vendor/SHA2-256SUMS' | Where-Object { $_ -match '\s+\*?yt-dlp\.exe$' } | Select-Object -First 1
-          if (-not $checksumLine) { throw 'Nie znaleziono SHA256 dla yt-dlp.exe' }
-          $expected = ($checksumLine.Trim() -split '\s+')[0].ToLower()
-          $actual = (Get-FileHash 'vendor/yt-dlp.exe' -Algorithm SHA256).Hash.ToLower()
-          if ($expected -ne $actual) { throw 'Suma SHA256 yt-dlp.exe nie zgadza sie' }
+          $line = Get-Content 'vendor/SHA2-256SUMS' | Where-Object { $_ -match '\s+\*?yt-dlp\.exe$' } | Select-Object -First 1
+          if (-not $line) { throw 'Brak sumy SHA256 dla yt-dlp.exe' }
+          $expected = ($line.Trim() -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash 'vendor/yt-dlp.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'Niezgodna suma SHA256 dla yt-dlp' }
           & 'vendor/yt-dlp.exe' --version
-          if ($LASTEXITCODE -ne 0) { throw 'yt-dlp.exe nie uruchamia sie' }
+          if ($LASTEXITCODE -ne 0) { throw 'Silnik yt-dlp nie uruchomil sie' }
 
           Invoke-WebRequest -Uri 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip' -OutFile 'deno.zip'
-          Expand-Archive -Path 'deno.zip' -DestinationPath 'deno-unpacked' -Force
+          Expand-Archive 'deno.zip' 'deno-unpacked' -Force
           $deno = Get-ChildItem 'deno-unpacked' -Recurse -Filter 'deno.exe' | Select-Object -First 1
-          if (-not $deno) { throw 'Brak deno.exe w paczce' }
+          if (-not $deno) { throw 'Brak deno.exe' }
           Copy-Item $deno.FullName 'vendor/deno.exe'
-          & 'vendor/deno.exe' --version
-          if ($LASTEXITCODE -ne 0) { throw 'deno.exe nie uruchamia sie' }
 
-          Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile 'ffmpeg.zip'
-          Expand-Archive -Path 'ffmpeg.zip' -DestinationPath 'ffmpeg-unpacked' -Force
-          $ffmpeg = Get-ChildItem 'ffmpeg-unpacked' -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1
-          $ffprobe = Get-ChildItem 'ffmpeg-unpacked' -Recurse -Filter 'ffprobe.exe' | Select-Object -First 1
-          if (-not $ffmpeg -or -not $ffprobe) { throw 'Brakuje ffmpeg/ffprobe' }
-          Copy-Item $ffmpeg.FullName 'vendor/ffmpeg.exe'
-          Copy-Item $ffprobe.FullName 'vendor/ffprobe.exe'
+          Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip' -OutFile 'ffmpeg.zip'
+          Expand-Archive 'ffmpeg.zip' 'ffmpeg-unpacked' -Force
+          foreach ($binary in @('ffmpeg.exe','ffprobe.exe')) {
+            $found = Get-ChildItem 'ffmpeg-unpacked' -Recurse -Filter $binary | Select-Object -First 1
+            if (-not $found) { throw "Brakuje $binary" }
+            Copy-Item $found.FullName "vendor/$binary"
+          }
           & 'vendor/ffmpeg.exe' -version
-          if ($LASTEXITCODE -ne 0) { throw 'ffmpeg.exe nie uruchamia sie' }
+          if ($LASTEXITCODE -ne 0) { throw 'FFmpeg nie uruchomil sie' }
 
-      - name: Zbuduj program EXE
+      - name: Budowa kompletnego folderu aplikacji
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all customtkinter --collect-all cryptography --hidden-import gui --hidden-import winotify --name YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM app.py
-          if ($LASTEXITCODE -ne 0) { throw 'Budowa EXE nie powiodla sie' }
-          $output = 'dist/YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM'
-          if (-not (Test-Path "$output/YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM.exe")) { throw 'Brak programu EXE' }
-          Copy-Item 'vendor/*.exe' $output
-          Copy-Item 'README_PL.md' "$output/INSTRUKCJA_PL.md"
-          # Ensure GUI, licensing module and FFmpeg tools have been packaged.
-          if (-not (Test-Path "$output/yt-dlp.exe")) { throw 'Nie ma silnika yt-dlp.exe' }
-          if (-not (Test-Path "$output/ffmpeg.exe")) { throw 'Nie ma FFmpeg' }
-          if (-not (Test-Path "$output/ffprobe.exe")) { throw 'Nie ma FFprobe' }
-          Get-ChildItem $output | Select-Object Name, Length
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all customtkinter --collect-all cryptography --hidden-import gui --hidden-import winotify --name YOUTUBE_VIDEO_DOWNLOADER app.py
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller nie zbudowal EXE' }
+          $dir = 'dist/YOUTUBE_VIDEO_DOWNLOADER'
+          if (-not (Test-Path "$dir/YOUTUBE_VIDEO_DOWNLOADER.exe")) { throw 'Brak EXE' }
+          if (-not (Test-Path "$dir/_internal" -PathType Container)) { throw 'Brak _internal, paczka Portable bylaby niepelna' }
+          Copy-Item 'vendor/*.exe' $dir
+          Copy-Item 'README_PL.md' "$dir/INSTRUKCJA_PL.md"
+          Copy-Item 'THIRD_PARTY_NOTICES.md' $dir
+          foreach ($bin in @('yt-dlp.exe','deno.exe','ffmpeg.exe','ffprobe.exe')) {
+            if (-not (Test-Path "$dir/$bin" -PathType Leaf)) { throw "Brak $bin" }
+          }
 
-      - name: Publikuj artefakt EXE
+      - name: ZIP Portable - caly folder EXE i _internal
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force 'release' | Out-Null
+          Compress-Archive -Path 'dist/YOUTUBE_VIDEO_DOWNLOADER' -DestinationPath 'release/YOUTUBE_VIDEO_DOWNLOADER_4_0_PORTABLE.zip' -CompressionLevel Optimal -Force
+          if (-not (Test-Path 'release/YOUTUBE_VIDEO_DOWNLOADER_4_0_PORTABLE.zip')) { throw 'Nie powstal ZIP Portable' }
+
+      - name: Pobierz kompilator instalatora Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = $null
+          foreach ($base in @("${env:ProgramFiles(x86)}", "$env:ProgramFiles")) {
+            if (Test-Path $base) {
+              foreach ($folder in (Get-ChildItem $base -Directory -Filter 'Inno Setup*' -ErrorAction SilentlyContinue)) {
+                $path = Join-Path $folder.FullName 'ISCC.exe'
+                if (Test-Path $path) { $iscc = $path; break }
+              }
+            }
+            if ($iscc) { break }
+          }
+          if (-not $iscc) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Nie udalo sie zainstalowac Inno Setup' }
+          }
+
+      - name: Kompiluj instalator Windows Setup.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = $null
+          foreach ($base in @("${env:ProgramFiles(x86)}", "$env:ProgramFiles")) {
+            if (Test-Path $base) {
+              foreach ($folder in (Get-ChildItem $base -Directory -Filter 'Inno Setup*' -ErrorAction SilentlyContinue)) {
+                $path = Join-Path $folder.FullName 'ISCC.exe'
+                if (Test-Path $path) { $iscc = $path; break }
+              }
+            }
+            if ($iscc) { break }
+          }
+          if (-not $iscc) { throw 'Nie znaleziono ISCC.exe' }
+          & $iscc 'installer/YOUTUBE_VIDEO_DOWNLOADER.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup nie zbudowal instalatora' }
+          if (-not (Test-Path 'release/YOUTUBE_VIDEO_DOWNLOADER_4_0_SETUP.exe')) { throw 'Brak Setup.exe' }
+
+      - name: Publikuj Portable ZIP
         uses: actions/upload-artifact@v6
         with:
-          name: YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM_WINDOWS
-          path: dist/YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM/
+          name: YVD_4_0_PORTABLE_WINDOWS
+          path: release/YOUTUBE_VIDEO_DOWNLOADER_4_0_PORTABLE.zip
           if-no-files-found: error
           retention-days: 30
 
-      - name: Zbuduj oddzielny panel wlasciciela do generowania kodow
+      - name: Publikuj instalator Setup.exe
+        uses: actions/upload-artifact@v6
+        with:
+          name: YVD_4_0_INSTALLER_WINDOWS
+          path: release/YOUTUBE_VIDEO_DOWNLOADER_4_0_SETUP.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Zbuduj panel wlasciciela Premium (oddzielny EXE)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          # No owner PEM key is EVER checked into GitHub or bundled in the EXE.
           python -m PyInstaller --noconfirm --clean --onefile --windowed --paths tools --collect-all cryptography --name YVD_PREMIUM_OWNER tools/premium_generator_gui.py
-          if ($LASTEXITCODE -ne 0) { throw 'Budowa panelu wlasciciela nie powiodla sie' }
-          if (-not (Test-Path 'dist/YVD_PREMIUM_OWNER.exe')) { throw 'Brak panelu wlasciciela EXE' }
+          if ($LASTEXITCODE -ne 0) { throw 'Nie udalo sie zbudowac panelu wlasciciela' }
+          if (-not (Test-Path 'dist/YVD_PREMIUM_OWNER.exe')) { throw 'Brak YVD_PREMIUM_OWNER.exe' }
 
-      - name: Publikuj panel wlasciciela EXE (bez prywatnego klucza)
+      - name: Publikuj panel wlasciciela bez klucza prywatnego
         uses: actions/upload-artifact@v6
         with:
-          name: YVD_3_1_PREMIUM_OWNER_WINDOWS
+          name: YVD_4_0_PREMIUM_OWNER_WINDOWS
           path: dist/YVD_PREMIUM_OWNER.exe
           if-no-files-found: error
           retention-days: 30
