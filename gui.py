@@ -96,7 +96,7 @@ class DownloadTask:
 class UltraDownloader(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title(f"{APP_TITLE} {APP_VERSION}")
+        self.title(APP_TITLE)
         self.geometry("1200x930")
         self.minsize(990, 760)
         self.home = user_data_dir()
