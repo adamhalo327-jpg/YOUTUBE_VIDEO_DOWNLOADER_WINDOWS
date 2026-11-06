@@ -1,0 +1,7 @@
+NAPRAWA TESTOW 14.0
+1) Na GitHub w tools/issue_premium_code.py podmien zawartosc na wersje z paczki.
+2) Dodaj cloud_worker/wrangler.toml.example.
+3) W .github/workflows/build-14-0.yml dodaj instalacje pytest PRZED unittest (wersja z tej paczki).
+4) Dodaj tests/test_worker14.mjs jesli jeszcze brak.
+5) Uruchom workflow 14.0, publish_release=false.
+Nie ruszaj Cloudflare i D1.
