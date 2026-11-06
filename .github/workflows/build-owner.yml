@@ -1,0 +1,55 @@
+name: Build Premium Owner Panel EXE
+
+on: [workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  build-owner:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Pobierz pliki repozytorium
+        uses: actions/checkout@v6
+
+      - name: Przygotuj Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Sprawdz pliki panelu Premium
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path 'tools/premium_generator_gui.py')) {
+            throw 'Brak tools/premium_generator_gui.py. Dodaj ten plik do repozytorium.'
+          }
+          if (-not (Test-Path 'tools/issue_premium_code.py')) {
+            throw 'Brak tools/issue_premium_code.py. Dodaj ten plik do repozytorium.'
+          }
+
+      - name: Instaluj zaleznosci panelu
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --upgrade pip
+          python -m pip install 'pyinstaller>=6.11,<8' 'cryptography>=44,<49'
+          if ($LASTEXITCODE -ne 0) { throw 'Instalacja zaleznosci nie powiodla sie' }
+
+      - name: Zbuduj YVD_PREMIUM_OWNER.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --paths tools --collect-all cryptography --name YVD_PREMIUM_OWNER tools/premium_generator_gui.py
+          if ($LASTEXITCODE -ne 0) { throw 'Nie udalo sie zbudowac panelu Premium' }
+          if (-not (Test-Path 'dist/YVD_PREMIUM_OWNER.exe')) { throw 'Brak EXE po kompilacji' }
+          Get-Item 'dist/YVD_PREMIUM_OWNER.exe' | Select-Object Name, Length
+
+      - name: Opublikuj panel Premium do pobrania
+        uses: actions/upload-artifact@v6
+        with:
+          name: YVD_3_1_PREMIUM_OWNER_WINDOWS
+          path: dist/YVD_PREMIUM_OWNER.exe
+          if-no-files-found: error
+          retention-days: 30
