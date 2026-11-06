@@ -1,9 +1,9 @@
-
 name = "yvd-premium-cloud"
 main = "src/worker.js"
-compatibility_date = "2026-11-06"
-
+compatibility_date = "2026-11-01"
+# Replace database_id using: npx wrangler d1 create yvd-premium-db
 [[d1_databases]]
 binding = "DB"
 database_name = "yvd-premium-db"
-database_id = "UZUPELNIJ_ID_BAZY"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+# Set ADMIN_TOKEN using: npx wrangler secret put ADMIN_TOKEN
