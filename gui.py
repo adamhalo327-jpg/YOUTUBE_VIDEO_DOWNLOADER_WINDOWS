@@ -765,6 +765,9 @@ class UltraDownloader(ctk.CTk):
         self._text(panel,"🪙 SKLEP TOKENÓW — 12.1",22,self.accent,bold=True).pack(anchor="w",padx=18,pady=(15,8))
         self.token_balance_label=self._text(panel,"",19,self.accent,bold=True)
         self.token_balance_label.pack(anchor="w",padx=18,pady=8)
+        self.token_wallet_id_label=self._text(panel,"ID portfela: odśwież, aby wyświetlić",13,self.text)
+        self.token_wallet_id_label.pack(anchor="w",padx=18,pady=(8,3))
+        self._button(panel,"📋 KOPIUJ ID PORTFELA",self._copy_token_wallet_id,width=260,secondary=True).pack(anchor="w",padx=18,pady=4)
         self.token_expiry_label=self._text(panel,"",12,self.muted)
         self.token_expiry_label.pack(anchor="w",padx=18,pady=5)
         self._text(panel,"Za ukończone pobranie nowego pliku: 10 tokenów. Maksymalnie 100 dziennie.\nTen sam adres nagradzany jest raz dziennie; błędy, anulowane zadania i pliki już istniejące nie dają tokenów.",12,self.muted,wraplength=800,justify="left").pack(anchor="w",padx=18,pady=12)
@@ -780,9 +783,30 @@ class UltraDownloader(ctk.CTk):
     def _refresh_token_shop(self):
         if not hasattr(self,"token_balance_label"): return
         self.token_balance_label.configure(text=f"🪙 Twoje tokeny: {self.tokens.balance}")
+        if hasattr(self,"token_wallet_id_label"):
+            self.token_wallet_id_label.configure(text="ID portfela: " + (self.tokens.wallet_id or "odśwież, aby wyświetlić"))
         until=self.tokens.premium_until()
         active=self.tokens.premium()
         self.token_expiry_label.configure(text=("Pakiet tokenowy aktywny do: " + until.astimezone().strftime("%d.%m.%Y %H:%M")) if active else "Brak aktywnego pakietu tokenowego")
+
+    def _copy_token_wallet_id(self):
+        wallet_id=self.tokens.wallet_id
+        if not wallet_id:
+            self._refresh_wallet_async()
+            messagebox.showinfo(
+                "ID portfela",
+                "Identyfikator nie jest jeszcze dostępny. Trwa odświeżanie portfela z Cloudflare. "
+                "Spróbuj ponownie po zakończeniu synchronizacji.",
+            )
+            return
+        self.clipboard_clear()
+        self.clipboard_append(wallet_id)
+        self.update()
+        messagebox.showinfo(
+            "ID portfela skopiowane",
+            "Skopiowano ID portfela do schowka. Możesz je teraz wkleić "
+            "w ADMIN CENTER 12.1. Nie udostępniaj sekretu portfela.",
+        )
 
     def _refresh_wallet_async(self):
         def run():
