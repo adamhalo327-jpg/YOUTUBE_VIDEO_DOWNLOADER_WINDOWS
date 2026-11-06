@@ -29,7 +29,7 @@ const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const CODE = /^YVD5-[a-f0-9]{40}$/;
 const DEVICE = /^[a-f0-9]{32}$/;
 const TOKEN = /^yvd5t-[a-f0-9]{64}$/;
-const ADMIN_PATHS = new Set(['/admin/issue', '/admin/list', '/admin/stats', '/admin/revoke', '/admin/extend']);
+const ADMIN_PATHS = new Set(['/admin/issue', '/admin/list', '/admin/stats', '/admin/revoke', '/admin/extend', '/admin/token-wallet', '/admin/token-grant']);
 const safeEqual = (a, b) => {
   const left = encoder.encode(a), right = encoder.encode(b);
   let diff = left.length ^ right.length;
@@ -148,6 +148,38 @@ async function handleAdmin(path, body, env, fingerprint) {
     await audit(env.DB, 'extend', id, fingerprint, `${minutes} minutes`);
     return json({ok: true, expires_at: expires});
   }
+  if (path === '/admin/token-wallet') {
+    const id = typeof body.wallet_id === 'string' ? body.wallet_id.trim() : '';
+    if (!UUID.test(id)) return json({error: 'Nieprawidłowy identyfikator portfela'}, 400);
+    const found=await env.DB.prepare('SELECT id, created_at FROM token_wallets WHERE id=?').bind(id).first();
+    if(!found)return json({error:'Nie znaleziono portfela'},404);
+    const grants=await env.DB.prepare('SELECT COALESCE(SUM(amount),0) AS total FROM token_admin_grants WHERE wallet_id=?').bind(id).first();
+    const rewards=await env.DB.prepare('SELECT COALESCE(SUM(delta),0) AS total FROM token_ledger WHERE wallet_id=?').bind(id).first();
+    return json({wallet_id:id,created_at:found.created_at,balance:Number(grants?.total||0)+Number(rewards?.total||0)});
+  }
+  if (path === '/admin/token-grant') {
+    const id=typeof body.wallet_id==='string'?body.wallet_id.trim():'';
+    const amount=body.amount;
+    const reason=typeof body.reason==='string'?body.reason.trim():'';
+    const requestId=typeof body.request_id==='string'?body.request_id:'';
+    if (!UUID.test(id) || !UUID.test(requestId) || !Number.isSafeInteger(amount) || amount<1 || amount>10000 || !reason || reason.length>180)
+      return json({error:'Podaj ID portfela, 1–10000 tokenów, powód i UUID operacji'},400);
+    const existing=await env.DB.prepare('SELECT wallet_id,amount FROM token_admin_grants WHERE id=?').bind(requestId).first();
+    if(existing) return existing.wallet_id===id && Number(existing.amount)===amount
+      ? json({ok:true,already_processed:true,wallet_id:id,balance:await balanceOf(env,id)})
+      : json({error:'Identyfikator operacji został już użyty'},409);
+    const found=await env.DB.prepare('SELECT id FROM token_wallets WHERE id=?').bind(id).first();
+    if(!found)return json({error:'Nie znaleziono portfela'},404);
+    const stamp=nowIso();
+    await env.DB.batch([
+      env.DB.prepare('INSERT OR IGNORE INTO token_admin_grants(id,wallet_id,amount,reason,actor_fingerprint,created_at) VALUES(?,?,?,?,?,?)')
+        .bind(requestId,id,amount,reason,fingerprint,stamp),
+      env.DB.prepare(`INSERT OR IGNORE INTO admin_audit(id,event,license_id,actor_fingerprint,detail,created_at)
+        SELECT ?,'token_grant',NULL,?, ?,? WHERE EXISTS(SELECT 1 FROM token_admin_grants WHERE id=? AND wallet_id=?)`)
+        .bind('grant:'+requestId,fingerprint,JSON.stringify({wallet_id:id,amount,reason}),stamp,requestId,id)
+    ]);
+    return json({ok:true,wallet_id:id,amount,balance:await balanceOf(env,id)});
+  }
   return json({error: 'Not found'}, 404);
 }
 
@@ -167,12 +199,13 @@ const walletAuth = async (request, body, env) => {
 };
 const balanceOf = async (env,id) => {
   const a=await env.DB.prepare('SELECT COALESCE(SUM(delta),0) AS balance FROM token_ledger WHERE wallet_id=?').bind(id).first();
-  return Number(a?.balance||0);
+  const g=await env.DB.prepare('SELECT COALESCE(SUM(amount),0) AS total FROM token_admin_grants WHERE wallet_id=?').bind(id).first();
+  return Number(a?.balance||0)+Number(g?.total||0);
 };
 const walletStatus = async (env,id) => {
   const expiry=await env.DB.prepare('SELECT MAX(expires_at_s) AS expiry FROM token_purchases WHERE wallet_id=?').bind(id).first();
   const expires=Number(expiry?.expiry||0);
-  return {balance:await balanceOf(env,id),premium_until:expires>0?new Date(expires*1000).toISOString():null,active:expires>unix()};
+  return {wallet_id:id,balance:await balanceOf(env,id),premium_until:expires>0?new Date(expires*1000).toISOString():null,active:expires>unix()};
 };
 async function handleWallet(path,body,request,env,ipHash) {
   const device=typeof body.device==='string'?body.device:'';
@@ -239,8 +272,8 @@ async function handleWallet(path,body,request,env,ipHash) {
     await env.DB.batch([
       env.DB.prepare(`INSERT OR IGNORE INTO token_ledger(id,wallet_id,delta,kind,day,url_hash,ip_hash,created_at)
        SELECT ?,?,-?,'purchase',?,NULL,NULL,?
-       WHERE (SELECT COALESCE(SUM(delta),0) FROM token_ledger WHERE wallet_id=?)>=?`)
-       .bind(debit,id,spec[0],day,nowIso(),id,spec[0]),
+       WHERE ((SELECT COALESCE(SUM(delta),0) FROM token_ledger WHERE wallet_id=?) + (SELECT COALESCE(SUM(amount),0) FROM token_admin_grants WHERE wallet_id=?))>=?`)
+       .bind(debit,id,spec[0],day,nowIso(),id,id,spec[0]),
       env.DB.prepare(`INSERT OR IGNORE INTO token_purchases(id,wallet_id,package,price,expires_at_s,created_at)
        SELECT ?,?,?,?,MAX(?,COALESCE((SELECT MAX(expires_at_s) FROM token_purchases WHERE wallet_id=?),0))+?,?
        FROM token_ledger WHERE id=? AND wallet_id=?`)

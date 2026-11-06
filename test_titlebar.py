@@ -18,7 +18,7 @@ class TitleBarTests(unittest.TestCase):
 
     def test_edition_banner_is_in_app(self):
         source = (Path(__file__).resolve().parents[1] / "gui.py").read_text(encoding="utf-8")
-        self.assertIn('"TOKEN SHOP 12.1"', source)
+        self.assertIn('"AUTO UPDATE CENTER 13.0"', source)
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,7 @@ from updates import newer, version_tuple
 
 class Version41Tests(unittest.TestCase):
     def test_version_compare(self):
-        self.assertTrue(newer('v12.2.0'))
+        self.assertTrue(newer('v13.1.0'))
         self.assertFalse(newer('v12.1.0'))
         self.assertFalse(newer('v4.0.9'))
         self.assertFalse(newer('garbage'))

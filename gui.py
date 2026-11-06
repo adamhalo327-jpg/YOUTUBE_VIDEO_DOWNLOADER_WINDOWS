@@ -30,7 +30,7 @@ from core import (
 )
 from licensing import LicenseManager, format_remaining
 from download_statistics import summarize, readable_bytes
-from updates import check_release, RELEASES_WEB
+from updates import check_release, release_history, RELEASES_WEB, CURRENT_VERSION
 from infinity_features import schedule_date, is_due, playlist_indices, turbo_fragments, readable_speed
 from video_studio import studio_command, run_studio, OUTPUTS
 from cloud_license import CloudLicense
@@ -183,6 +183,9 @@ class UltraDownloader(ctk.CTk):
         self.preview_image = None
         self.preview_request = 0
         self.engine_update_in_progress = False
+        self._update_download_cancel = threading.Event()
+        self._update_verified_path = None
+        self._update_last_result = None
         self.closing = False
         self.history_render_pending = False
         self._set_palette(self.theme_var.get())
@@ -240,7 +243,7 @@ class UltraDownloader(ctk.CTk):
         head = ctk.CTkFrame(self, fg_color=self.bg)
         head.pack(fill="x", padx=20, pady=(15, 5))
         self._text(head, "▶  YOUTUBE VIDEO DOWNLOADER", 22, bold=True).pack(side="left")
-        self._text(head, "TOKEN SHOP 12.1", 13, self.accent, bold=True).pack(side="right", padx=8)
+        self._text(head, "AUTO UPDATE CENTER 13.0", 13, self.accent, bold=True).pack(side="right", padx=8)
         self.premium_header = self._text(head, "", 11, self.accent, bold=True)
         self.premium_header.pack(side="right", padx=12)
         self._text(self, "Universal Downloader  •  Playlisty  •  MP4 / MP3  •  Napisy  •  Turbo Pro  •  Premium", 12, self.muted).pack(anchor="w", padx=25)
@@ -248,7 +251,7 @@ class UltraDownloader(ctk.CTk):
                                   segmented_button_selected_color=self.hover,
                                   segmented_button_unselected_color=self.panel2)
         self.tabs.pack(fill="both", expand=True, padx=16, pady=(7, 7))
-        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0", "Universal 12.0", "Sklep tokenow"):
+        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0", "Universal 12.0", "Sklep tokenow", "Auto Update 13.0"):
             self.tabs.add(tab)
         self._download_tab(self.tabs.tab("Pobieranie"))
         self._playlist_tab(self.tabs.tab("Playlisty"))
@@ -261,6 +264,7 @@ class UltraDownloader(ctk.CTk):
         self._data_center_tab(self.tabs.tab("Centrum 10.0"))
         self._universal_tab(self.tabs.tab("Universal 12.0"))
         self._token_shop_tab(self.tabs.tab("Sklep tokenow"))
+        self._update_center_tab(self.tabs.tab("Auto Update 13.0"))
         self.after(200, self._universal_poll)
         foot = ctk.CTkFrame(self, fg_color=self.bg)
         foot.pack(fill="x", padx=25, pady=(0, 10))
@@ -688,6 +692,66 @@ class UltraDownloader(ctk.CTk):
         breakdown = ",  ".join(f"{k}: {v}" for k,v in sorted(result['formats'].items()))
         self.stats_types.configure(text="Formaty: " + (breakdown or "brak") + f"    •    Niedostępne ścieżki: {result['missing']}")
 
+    def _update_center_tab(self, root):
+        frame=ctk.CTkScrollableFrame(root,fg_color=self.panel,corner_radius=12)
+        frame.pack(fill="both",expand=True,padx=5,pady=5)
+        self._text(frame,"AUTO UPDATE CENTER 4.0",23,self.accent,bold=True).pack(anchor="w",padx=20,pady=(18,8))
+        self._text(frame,f"Zainstalowana wersja: {CURRENT_VERSION}  •  Stabilne wydania GitHub",14,self.text).pack(anchor="w",padx=20,pady=5)
+        self.update_center_status=self._text(frame,"Sprawdź dostępność nowych wydań.",13,self.muted,wraplength=780,justify="left")
+        self.update_center_status.pack(anchor="w",padx=20,pady=(8,10))
+        buttons=ctk.CTkFrame(frame,fg_color="transparent")
+        buttons.pack(fill="x",padx=17,pady=8)
+        self._button(buttons,"SPRAWDŹ AKTUALIZACJE",lambda:self._check_app_update(quiet=False),width=250).pack(side="left",padx=3)
+        self._button(buttons,"Historia wersji",self._update_history_async,secondary=True,width=170).pack(side="left",padx=3)
+        self._button(buttons,"GitHub Releases",self._open_release_page,secondary=True,width=170).pack(side="left",padx=3)
+        self._text(frame,"NAJNOWSZE WYDANIE / LISTA ZMIAN",15,self.accent,bold=True).pack(anchor="w",padx=20,pady=(16,6))
+        self.update_center_notes=ctk.CTkTextbox(frame,height=170,wrap="word",fg_color=self.bg,text_color=self.text)
+        self.update_center_notes.pack(fill="x",padx=20,pady=6)
+        self.update_center_notes.insert("1.0","Informacje o najnowszej wersji pojawią się po sprawdzeniu aktualizacji.")
+        self.update_center_notes.configure(state="disabled")
+        self.update_center_progress=ctk.CTkProgressBar(frame,progress_color=self.accent,fg_color=self.panel2)
+        self.update_center_progress.pack(fill="x",padx=20,pady=(17,5))
+        self.update_center_progress.set(0)
+        self.update_center_progress_text=self._text(frame,"Pobieranie: 0%",12,self.muted)
+        self.update_center_progress_text.pack(anchor="w",padx=20,pady=5)
+        row=ctk.CTkFrame(frame,fg_color="transparent");row.pack(fill="x",padx=17,pady=10)
+        self._button(row,"POBIERZ INSTALATOR (SHA256)",self._download_setup_update,width=290).pack(side="left",padx=3)
+        self._button(row,"Anuluj pobieranie",self._cancel_update_download,width=165,secondary=True).pack(side="left",padx=3)
+        self._button(row,"ZAINSTALUJ PO POTWIERDZENIU",self._install_verified_update,width=290,secondary=True).pack(side="left",padx=3)
+        self._check(frame,"Sprawdzaj nowe wersje po uruchomieniu programu",self.auto_app_updates_var,self._save_settings).pack(anchor="w",padx=20,pady=12)
+        self._text(frame,"Bezpieczeństwo: tylko oficjalne stabilne wydania GitHub; przed instalacją kontrola SHA256. Instalator uruchamia się wyłącznie po Twoim potwierdzeniu. Pliki portfela i licencji pozostają w katalogu danych użytkownika.",11,self.muted,wraplength=800,justify="left").pack(anchor="w",padx=20,pady=15)
+
+    def _set_update_notes(self,content):
+        if not hasattr(self,'update_center_notes'):return
+        self.update_center_notes.configure(state="normal")
+        self.update_center_notes.delete("1.0","end")
+        self.update_center_notes.insert("1.0",str(content)[:8000])
+        self.update_center_notes.configure(state="disabled")
+
+    def _update_history_async(self):
+        def job():
+            try:self.events.put(('update_history',release_history(),False))
+            except Exception as err:self.events.put(('update_history',str(err)[:250],True))
+        self.pool.submit(job)
+
+    def _cancel_update_download(self):
+        self._update_download_cancel.set()
+        self.update_center_status.configure(text="Żądanie anulowania pobierania wysłane.")
+
+    def _install_verified_update(self):
+        path=self._update_verified_path
+        if not path or not Path(path).is_file():
+            messagebox.showwarning('Update Center','Najpierw pobierz i zweryfikuj instalator.');return
+        if sys.platform!='win32':
+            messagebox.showwarning('Update Center','Instalator działa tylko w systemie Windows.');return
+        if not messagebox.askyesno('Instalacja aktualizacji','Uruchomić zweryfikowany instalator Windows?\nZapisz pracę przed instalacją. Nie wyłączaj komputera podczas aktualizacji.'):
+            return
+        try:
+            os.startfile(str(Path(path)))
+            self.update_center_status.configure(text='Instalator uruchomiony. Zamknij aplikację przed aktualizacją.')
+        except OSError as err:
+            messagebox.showerror('Update Center',str(err))
+
     def _check_app_update_auto(self):
         if self.auto_app_updates_var.get() and not self.closing:
             self._check_app_update(quiet=True)
@@ -697,6 +761,7 @@ class UltraDownloader(ctk.CTk):
             return
         self._app_update_busy = True
         self.app_update_status.configure(text="Sprawdzam wydania programu…")
+        if hasattr(self,'update_center_status'):self.update_center_status.configure(text='Sprawdzam oficjalne wydania GitHub…')
         def worker():
             try:
                 result = check_release()
@@ -710,17 +775,24 @@ class UltraDownloader(ctk.CTk):
         webbrowser.open(RELEASES_WEB)
 
     def _download_setup_update(self):
-        if not messagebox.askyesno('Auto Update 2.0',
-          'Pobrać instalator z oficjalnego GitHub Releases i zweryfikować SHA256?\n'
-          'Aplikacja NIE uruchomi instalatora automatycznie.'):
+        if getattr(self,'_update_download_busy',False):
+            messagebox.showinfo('Update Center','Pobieranie już trwa.');return
+        if not messagebox.askyesno('AUTO UPDATE CENTER 4.0','Pobrać aktualizację z GitHub i zweryfikować SHA256?\nInstalator nie uruchomi się bez osobnego potwierdzenia.'):
             return
-        self.app_update_status.configure(text='Pobieranie i weryfikacja instalatora…')
-        def run():
+        self._update_download_busy=True
+        self._update_download_cancel.clear()
+        self._update_verified_path=None
+        self.app_update_status.configure(text='Pobieranie aktualizacji…')
+        if hasattr(self,'update_center_status'):self.update_center_status.configure(text='Pobieranie i weryfikacja SHA256…')
+        def job():
             try:
-                location=download_verified_setup(self.home / 'updates')
-                self.events.put(('verified_setup',str(location),'ok'))
-            except Exception as exc:self.events.put(('verified_setup',str(exc)[:240],'error'))
-        threading.Thread(target=run,daemon=True).start()
+                def report(done,total):
+                    self.events.put(('update_progress',done,total))
+                path=download_verified_setup(self.home/'updates',progress=report,cancel=self._update_download_cancel)
+                self.events.put(('verified_setup',str(path),'ok'))
+            except Exception as exc:
+                self.events.put(('verified_setup',str(exc)[:240],'error'))
+        self.pool.submit(job)
 
     def _settings_tab(self, root):
         frame = ctk.CTkScrollableFrame(root, fg_color=self.panel, corner_radius=12)
@@ -765,9 +837,9 @@ class UltraDownloader(ctk.CTk):
         self._text(panel,"🪙 SKLEP TOKENÓW — 12.1",22,self.accent,bold=True).pack(anchor="w",padx=18,pady=(15,8))
         self.token_balance_label=self._text(panel,"",19,self.accent,bold=True)
         self.token_balance_label.pack(anchor="w",padx=18,pady=8)
-        self.token_wallet_id_label=self._text(panel,"ID portfela: odśwież, aby wyświetlić",13,self.text)
-        self.token_wallet_id_label.pack(anchor="w",padx=18,pady=(8,3))
-        self._button(panel,"📋 KOPIUJ ID PORTFELA",self._copy_token_wallet_id,width=260,secondary=True).pack(anchor="w",padx=18,pady=4)
+        self.token_wallet_id_label=self._text(panel,"ID portfela: odśwież, aby wyświetlić",11,self.muted)
+        self.token_wallet_id_label.pack(anchor="w",padx=18,pady=3)
+        self._button(panel,"KOPIUJ ID PORTFELA",self._copy_token_wallet_id,width=220,secondary=True).pack(anchor="w",padx=18,pady=4)
         self.token_expiry_label=self._text(panel,"",12,self.muted)
         self.token_expiry_label.pack(anchor="w",padx=18,pady=5)
         self._text(panel,"Za ukończone pobranie nowego pliku: 10 tokenów. Maksymalnie 100 dziennie.\nTen sam adres nagradzany jest raz dziennie; błędy, anulowane zadania i pliki już istniejące nie dają tokenów.",12,self.muted,wraplength=800,justify="left").pack(anchor="w",padx=18,pady=12)
@@ -793,20 +865,10 @@ class UltraDownloader(ctk.CTk):
         wallet_id=self.tokens.wallet_id
         if not wallet_id:
             self._refresh_wallet_async()
-            messagebox.showinfo(
-                "ID portfela",
-                "Identyfikator nie jest jeszcze dostępny. Trwa odświeżanie portfela z Cloudflare. "
-                "Spróbuj ponownie po zakończeniu synchronizacji.",
-            )
             return
         self.clipboard_clear()
         self.clipboard_append(wallet_id)
         self.update()
-        messagebox.showinfo(
-            "ID portfela skopiowane",
-            "Skopiowano ID portfela do schowka. Możesz je teraz wkleić "
-            "w ADMIN CENTER 12.1. Nie udostępniaj sekretu portfela.",
-        )
 
     def _refresh_wallet_async(self):
         def run():
@@ -1421,25 +1483,42 @@ class UltraDownloader(ctk.CTk):
                 elif kind == "app_update":
                     self._app_update_busy = False
                     result, quiet = ev[1], ev[2]
+                    self._update_last_result = result
+                    if hasattr(self,'update_center_status'):
+                        self.update_center_status.configure(text=(f"Dostępna wersja {result['tag']}" if result['newer'] else f"Wersja {CURRENT_VERSION} jest aktualna"))
+                        self._set_update_notes(f"{result['name']}\nWersja: {result['tag']}\n\n{result['notes']}")
                     if result['newer']:
                         self.app_update_status.configure(text=f"Nowa wersja {result['tag']} dostępna na GitHub Releases.", text_color=self.accent)
                         if not quiet and messagebox.askyesno("Aktualizacja aplikacji", "Dostępne jest nowe wydanie. Otworzyć oficjalną stronę pobierania?\nInstalacja wymaga Twojego potwierdzenia."):
                             self._open_release_page()
                     else:
-                        self.app_update_status.configure(text="Masz aktualną wersję 12.1 lub brak nowszego wydania.", text_color=self.muted)
+                        self.app_update_status.configure(text="Masz aktualną wersję 13.0 lub brak nowszego wydania.", text_color=self.muted)
                         if not quiet:
                             messagebox.showinfo("Aktualizacja aplikacji", "Brak nowszego wydania GitHub Releases.")
                 elif kind == "app_update_error":
                     self._app_update_busy = False
                     self.app_update_status.configure(text="Nie udało się sprawdzić wydań: " + ev[1], text_color=self.error)
+                    if hasattr(self,'update_center_status'):self.update_center_status.configure(text="Błąd sprawdzania aktualizacji: "+ev[1])
                     if not ev[2]:
                         messagebox.showwarning("Aktualizacja aplikacji", "Sprawdzenie nie powiodło się: " + ev[1])
+                elif kind == "update_history":
+                    history,error=ev[1],ev[2]
+                    if error:self.update_center_status.configure(text='Nie można pobrać historii: '+history)
+                    else:
+                        self._set_update_notes('HISTORIA STABILNYCH WYDAŃ\n\n'+'\n'.join(f"{x['tag']} — {x['name']}" for x in history))
+                        self.update_center_status.configure(text=f'Pobrano {len(history)} wydań z GitHub.')
+                elif kind == "update_progress":
+                    done,total=ev[1],ev[2]
+                    if hasattr(self,'update_center_progress') and total>0:
+                        self.update_center_progress.set(min(1.0,done/total))
+                        self.update_center_progress_text.configure(text=f'Pobieranie: {done*100//total}% — {done//1048576} / {total//1048576} MB')
                 elif kind == "verified_setup":
+                    self._update_download_busy=False
                     result,level=ev[1],ev[2]
-                    self.app_update_status.configure(text=("Zweryfikowano: " if level=="ok" else "Błąd: ")+result,text_color=self.accent if level=="ok" else self.error)
-                    if level=="ok":
-                        import os
-                        if sys.platform=="win32": os.startfile(str(Path(result).parent))
+                    if level=='ok':self._update_verified_path=result
+                    self.app_update_status.configure(text=('Zweryfikowano: ' if level=='ok' else 'Błąd: ')+result,text_color=self.accent if level=='ok' else self.error)
+                    if hasattr(self,'update_center_status'):
+                        self.update_center_status.configure(text=('SHA256 OK — instalator gotowy: ' if level=='ok' else 'Pobieranie nie powiodło się: ')+result)
                 elif kind == "playlist_preview":
                     self.playlist_output.delete("1.0","end");self.playlist_output.insert("1.0",ev[1])
                 elif kind == "studio_done":
