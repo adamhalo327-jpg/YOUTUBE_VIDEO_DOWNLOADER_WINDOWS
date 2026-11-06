@@ -19,7 +19,7 @@ class DistributionV4Tests(unittest.TestCase):
         windows_titles=[x for x in ast.walk(init) if isinstance(x,ast.Call) and isinstance(x.func,ast.Attribute) and x.func.attr=='title']
         self.assertEqual(len(windows_titles), 1)
         self.assertEqual(ast.unparse(windows_titles[0]), 'self.title(APP_TITLE)')
-        self.assertIn('PREMIUM ACCESS 10.1',code)
+        self.assertIn('UNIVERSAL DOWNLOADER 12.0',code)
 
     def test_installer_contains_folder_and_uninstall(self):
         script=(ROOT / 'installer/YOUTUBE_VIDEO_DOWNLOADER.iss').read_text(encoding='utf-8')
@@ -28,8 +28,8 @@ class DistributionV4Tests(unittest.TestCase):
         self.assertNotIn('UninstallDelete',script)
 
     def test_workflow_has_three_artifacts(self):
-        workflow=(ROOT / '.github/workflows/build-10-1.yml').read_text(encoding='utf-8')
-        for item in ('workflow_dispatch:', 'push:', 'python -m unittest discover -s tests -v', 'YVD_10_1_PORTABLE_WINDOWS','YVD_10_1_INSTALLER_WINDOWS', 'YVD_10_1_PREMIUM_OWNER_WINDOWS','YVD_10_1_ADMIN_CENTER_WINDOWS','--onedir','Inno Setup','_internal', 'YOUTUBE_VIDEO_DOWNLOADER_10_1_SETUP.exe'):
+        workflow=(ROOT / '.github/workflows/build-12-0.yml').read_text(encoding='utf-8')
+        for item in ('workflow_dispatch:', 'push:', 'python -m unittest discover -s tests -v', 'YVD_12_0_PORTABLE_WINDOWS','YVD_12_0_INSTALLER_WINDOWS', 'YVD_12_0_PREMIUM_OWNER_WINDOWS','YVD_12_0_ADMIN_CENTER_WINDOWS','--onedir','Inno Setup','_internal', 'YOUTUBE_VIDEO_DOWNLOADER_12_0_SETUP.exe'):
             with self.subTest(item=item): self.assertIn(item,workflow)
 
     def test_no_owner_key_in_repo(self):

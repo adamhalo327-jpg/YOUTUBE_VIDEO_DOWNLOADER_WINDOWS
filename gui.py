@@ -36,6 +36,7 @@ from video_studio import studio_command, run_studio, OUTPUTS
 from cloud_license import CloudLicense
 from update_management import download_verified_setup
 from data_center import diagnostics, export_backup, import_backup
+from universal_downloader import UniversalSelection, PLATFORMS, CONTAINERS, QUALITIES, platform_for, build_command, preview_command, validate
 from premium_access import DownloadSelection, require_access, paid_reason, free_quality, FREE_MAX_PARALLEL, PREMIUM_MAX_PARALLEL, PREMIUM_FEATURES
 
 # Public compatibility with 1.0 tests / 2.0 integrations.
@@ -154,6 +155,16 @@ class UltraDownloader(ctk.CTk):
         self.playlist_items_var = ctk.StringVar(value="")
         self.skip_duplicates_var = ctk.BooleanVar(value=False)
         self.schedule_var = ctk.StringVar(value="")
+        self.universal_url = ctk.StringVar(value="")
+        self.universal_format = ctk.StringVar(value="MP4")
+        self.universal_quality = ctk.StringVar(value="1080p")
+        self.universal_playlist = ctk.BooleanVar(value=False)
+        self.universal_subs = ctk.BooleanVar(value=False)
+        self.universal_thumbnail = ctk.BooleanVar(value=False)
+        self.universal_trim = ctk.StringVar(value="")
+        self.universal_events = queue.Queue()
+        self.universal_process = None
+        self.universal_busy = False
         self.cloud_server_var = ctk.StringVar(value=self.cloud.settings.get("server", ""))
         self.cloud_code_var = ctk.StringVar(value="")
         self.studio_file_var = ctk.StringVar(value="")
@@ -225,15 +236,15 @@ class UltraDownloader(ctk.CTk):
         head = ctk.CTkFrame(self, fg_color=self.bg)
         head.pack(fill="x", padx=20, pady=(15, 5))
         self._text(head, "▶  YOUTUBE VIDEO DOWNLOADER", 22, bold=True).pack(side="left")
-        self._text(head, "PREMIUM ACCESS 10.1", 13, self.accent, bold=True).pack(side="right", padx=8)
+        self._text(head, "UNIVERSAL DOWNLOADER 12.0", 13, self.accent, bold=True).pack(side="right", padx=8)
         self.premium_header = self._text(head, "", 11, self.accent, bold=True)
         self.premium_header.pack(side="right", padx=12)
-        self._text(self, "Playlisty  •  MP4 / MP3  •  Napisy  •  Turbo Pro  •  Kolejka  •  Konwersja  •  Premium", 12, self.muted).pack(anchor="w", padx=25)
+        self._text(self, "Universal Downloader  •  Playlisty  •  MP4 / MP3  •  Napisy  •  Turbo Pro  •  Premium", 12, self.muted).pack(anchor="w", padx=25)
         self.tabs = ctk.CTkTabview(self, fg_color=self.bg, segmented_button_fg_color=self.panel,
                                   segmented_button_selected_color=self.hover,
                                   segmented_button_unselected_color=self.panel2)
         self.tabs.pack(fill="both", expand=True, padx=16, pady=(7, 7))
-        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0"):
+        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0", "Universal 12.0"):
             self.tabs.add(tab)
         self._download_tab(self.tabs.tab("Pobieranie"))
         self._playlist_tab(self.tabs.tab("Playlisty"))
@@ -244,6 +255,8 @@ class UltraDownloader(ctk.CTk):
         self._premium_tab(self.tabs.tab("Premium"))
         self._cloud_tab(self.tabs.tab("Cloud"))
         self._data_center_tab(self.tabs.tab("Centrum 10.0"))
+        self._universal_tab(self.tabs.tab("Universal 12.0"))
+        self.after(200, self._universal_poll)
         foot = ctk.CTkFrame(self, fg_color=self.bg)
         foot.pack(fill="x", padx=25, pady=(0, 10))
         self.footer_status = self._text(foot, "Gotowe do pobierania.", 11, self.muted)
@@ -319,6 +332,116 @@ class UltraDownloader(ctk.CTk):
         self.queue_scroll.pack(fill="both", expand=True, padx=5, pady=4)
         self.empty_label = self._text(self.queue_scroll, "Kolejka jest pusta.", 12, self.muted)
         self.empty_label.pack(pady=25)
+
+    def _universal_tab(self, root):
+        panel = ctk.CTkScrollableFrame(root, fg_color=self.panel)
+        panel.pack(fill="both", expand=True, padx=5, pady=5)
+        self._text(panel, "UNIVERSAL DOWNLOADER 12.0", 22, self.accent, bold=True).pack(anchor="w", padx=18, pady=(16,5))
+        self._text(panel, "YouTube • TikTok • Instagram • Twitch • Vimeo • Facebook • SoundCloud • Reddit • i inne", 12, self.muted).pack(anchor="w", padx=18)
+        self._text(panel, "Serwisy: " + "  /  ".join(PLATFORMS), 11, self.muted, wraplength=950, justify="left").pack(anchor="w", padx=18, pady=(5, 12))
+        self._text(panel, "LINK DO MATERIAŁU", 12, self.muted, bold=True).pack(anchor="w", padx=18)
+        self._entry(panel, self.universal_url, 800, placeholder="https://...").pack(fill="x", padx=18, pady=(4,10))
+        line = ctk.CTkFrame(panel, fg_color="transparent")
+        line.pack(fill="x", padx=18)
+        self._text(line, "FORMAT", 11, self.muted).grid(row=0, column=0, sticky="w")
+        self._text(line, "JAKOŚĆ", 11, self.muted).grid(row=0, column=1, sticky="w")
+        self._choice(line, self.universal_format, CONTAINERS, width=160).grid(row=1, column=0, padx=(0,10))
+        self._choice(line, self.universal_quality, QUALITIES, width=210).grid(row=1, column=1)
+        flags = ctk.CTkFrame(panel, fg_color="transparent")
+        flags.pack(fill="x", padx=18, pady=12)
+        self._check(flags, "Cała kolekcja (Premium)", self.universal_playlist).pack(side="left", padx=(0,15))
+        self._check(flags, "Napisy SRT (Premium)", self.universal_subs).pack(side="left", padx=(0,15))
+        self._check(flags, "Miniatura (Premium)", self.universal_thumbnail).pack(side="left")
+        section = ctk.CTkFrame(panel, fg_color="transparent")
+        section.pack(fill="x", padx=18)
+        self._text(section, "Fragment (Premium):", 12, self.muted).pack(side="left")
+        self._entry(section, self.universal_trim, 220, placeholder="00:00:10-00:00:30").pack(side="left", padx=12)
+        self._button(section, "Folder…", self._choose_folder, secondary=True, width=110).pack(side="left")
+        self._text(panel, "Folder zapisu: wspólny z zakładką Pobieranie. Obsługa serwisów zależy od yt-dlp i dostępności materiału.", 11, self.muted).pack(anchor="w", padx=18, pady=(8,5))
+        buttons = ctk.CTkFrame(panel, fg_color="transparent")
+        buttons.pack(fill="x", padx=18, pady=8)
+        self._button(buttons, "Sprawdź film", self._universal_preview, width=160, secondary=True).pack(side="left", padx=(0,9))
+        self._button(buttons, "POBIERZ", self._universal_start, width=160).pack(side="left", padx=(0,9))
+        self._button(buttons, "Anuluj", self._universal_cancel, width=100, secondary=True).pack(side="left")
+        self.universal_status = self._text(panel, "Gotowe. FREE: jeden MP4 do 1080p lub MP3; dodatkowe opcje wymagają Premium.", 12, self.accent, wraplength=900, justify="left")
+        self.universal_status.pack(anchor="w", padx=18, pady=6)
+        self.universal_log = ctk.CTkTextbox(panel, height=210, fg_color=self.bg, text_color=self.text)
+        self.universal_log.pack(fill="both", expand=True, padx=18, pady=(5,16))
+        self.universal_log.insert("1.0", "Universal Downloader korzysta z yt-dlp. Nie obsługuje omijania DRM ani prywatnych adresów sieciowych.\n")
+
+    def _universal_selection(self):
+        return UniversalSelection(url=self.universal_url.get().strip(), folder=Path(self.folder_var.get()).expanduser(),
+            container=self.universal_format.get(), quality=self.universal_quality.get(), playlist=self.universal_playlist.get(),
+            subtitles=self.universal_subs.get(), thumbnail=self.universal_thumbnail.get(), trim=self.universal_trim.get().strip())
+
+    def _universal_preview(self):
+        if self.universal_busy: return
+        try:
+            url = self.universal_url.get().strip()
+            provider = platform_for(url)
+            cmd = preview_command(url)
+        except (ValueError, OSError, FileNotFoundError) as exc:
+            messagebox.showerror("Podgląd", str(exc)); return
+        self.universal_busy = True
+        self.universal_status.configure(text="Sprawdzanie: " + provider)
+        def work():
+            try:
+                flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+                result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=70, creationflags=flags)
+                if result.returncode: raise RuntimeError((result.stderr or "Błąd ekstraktora")[-350:])
+                data = json.loads(result.stdout)
+                self.universal_events.put(("preview", str(data.get("title") or "Bez tytułu") + " • " + str(data.get("extractor_key") or provider)))
+            except Exception as exc: self.universal_events.put(("error", str(exc)[:350]))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _universal_start(self):
+        if self.universal_busy:
+            messagebox.showinfo("Universal", "Zakończ bieżące zadanie lub kliknij Anuluj."); return
+        try:
+            selection = self._universal_selection()
+            cmd = build_command(selection, premium=self._has_premium())
+            selection.folder.mkdir(parents=True, exist_ok=True)
+        except (ValueError, PermissionError, OSError, FileNotFoundError) as exc:
+            messagebox.showerror("Universal Downloader", str(exc)); return
+        self.universal_busy = True
+        self.universal_status.configure(text="Pobieranie: " + platform_for(selection.url))
+        self.universal_log.insert("end", "\nSTART: " + platform_for(selection.url) + " • " + selection.container + "\n")
+        def work():
+            flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            try:
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                    encoding="utf-8", errors="replace", bufsize=1, creationflags=flags)
+                self.universal_process = proc
+                for line in proc.stdout:
+                    self.universal_events.put(("line", line.strip()[:500]))
+                rc = proc.wait()
+                self.universal_events.put(("done", "Pobrano pomyślnie." if rc == 0 else "Zadanie przerwano lub wystąpił błąd (" + str(rc) + ")."))
+            except Exception as exc: self.universal_events.put(("done", "Błąd: " + str(exc)[:250]))
+            finally: self.universal_process = None
+        threading.Thread(target=work, daemon=True).start()
+
+    def _universal_cancel(self):
+        p = self.universal_process
+        if p and p.poll() is None:
+            try: p.terminate()
+            except OSError: pass
+            self.universal_status.configure(text="Anulowanie...")
+
+    def _universal_poll(self):
+        if self.closing: return
+        try:
+            for _ in range(60):
+                event, payload = self.universal_events.get_nowait()
+                if event in ("done", "error", "preview"):
+                    self.universal_busy = False
+                    self.universal_status.configure(text=payload)
+                if event == "line" and payload.startswith("PROGRESS:"):
+                    self.universal_status.configure(text=payload[:140])
+                if event != "line" or not payload.startswith("[download]  "):
+                    self.universal_log.insert("end", str(payload) + "\n")
+                    self.universal_log.see("end")
+        except queue.Empty: pass
+        self.after(200, self._universal_poll)
 
     def _has_premium(self):
         return self.license.premium() or self.cloud.premium()
@@ -1201,7 +1324,7 @@ class UltraDownloader(ctk.CTk):
                         if not quiet and messagebox.askyesno("Aktualizacja aplikacji", "Dostępne jest nowe wydanie. Otworzyć oficjalną stronę pobierania?\nInstalacja wymaga Twojego potwierdzenia."):
                             self._open_release_page()
                     else:
-                        self.app_update_status.configure(text="Masz aktualną wersję 10.1 lub brak nowszego wydania.", text_color=self.muted)
+                        self.app_update_status.configure(text="Masz aktualną wersję 12.0 lub brak nowszego wydania.", text_color=self.muted)
                         if not quiet:
                             messagebox.showinfo("Aktualizacja aplikacji", "Brak nowszego wydania GitHub Releases.")
                 elif kind == "app_update_error":
@@ -1310,10 +1433,11 @@ class UltraDownloader(ctk.CTk):
         self.footer_status.configure(text=str(message)[:200])
 
     def _close(self):
-        if any(t.status == "Pobieranie" for t in self.tasks.values()):
+        if self.universal_busy or any(t.status == "Pobieranie" for t in self.tasks.values()):
             if not messagebox.askyesno("Zamykanie", "Pobieranie trwa. Wstrzymać zadania i zamknąć program?"):
                 return
         self.closing = True
+        self._universal_cancel()
         for task in self.tasks.values():
             if task.status in {"Pobieranie", "W kolejce"}:
                 task.pause_requested = True
