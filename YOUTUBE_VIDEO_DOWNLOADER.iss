@@ -1,7 +1,7 @@
-; YOUTUBE VIDEO DOWNLOADER 4.0 ULTIMATE EDITION
+; YOUTUBE VIDEO DOWNLOADER 10.1 PREMIUM ACCESS
 ; Per-user installation, no admin rights; includes all PyInstaller bundled files.
 #define AppName "YOUTUBE VIDEO DOWNLOADER"
-#define AppVersion "4.1"
+#define AppVersion "10.1"
 #define AppExe "YOUTUBE_VIDEO_DOWNLOADER.exe"
 
 [Setup]
@@ -19,7 +19,8 @@ WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
 OutputDir=..\release
-OutputBaseFilename=YOUTUBE_VIDEO_DOWNLOADER_4_1_SETUP
+OutputBaseFilename=YOUTUBE_VIDEO_DOWNLOADER_10_1_SETUP
+SetupIconFile=..\assets\YVD_ICON.ico
 UninstallDisplayIcon={app}\{#AppExe}
 CloseApplications=yes
 RestartApplications=no
@@ -34,9 +35,10 @@ Name: "desktopicon"; Description: "Utwórz skrót na pulpicie"; GroupDescription
 
 [Files]
 Source: "..\dist\YOUTUBE_VIDEO_DOWNLOADER\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\assets\YVD_ICON.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{userprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
+Name: "{userprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\YVD_ICON.ico"
 Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]

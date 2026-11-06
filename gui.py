@@ -35,6 +35,8 @@ from infinity_features import schedule_date, is_due, playlist_indices, turbo_fra
 from video_studio import studio_command, run_studio, OUTPUTS
 from cloud_license import CloudLicense
 from update_management import download_verified_setup
+from data_center import diagnostics, export_backup, import_backup
+from premium_access import DownloadSelection, require_access, paid_reason, free_quality, FREE_MAX_PARALLEL, PREMIUM_MAX_PARALLEL, PREMIUM_FEATURES
 
 # Public compatibility with 1.0 tests / 2.0 integrations.
 def yt_base_command():
@@ -109,6 +111,16 @@ class UltraDownloader(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
+        # Windows taskbar/title-bar icon. Keep a fallback for launching from source.
+        icon_path = (Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+                     / "assets" / "YVD_ICON.ico")
+        if not icon_path.is_file():
+            icon_path = Path(__file__).resolve().parent / "assets" / "YVD_ICON.ico"
+        if icon_path.is_file():
+            try:
+                self.iconbitmap(str(icon_path))
+            except (OSError, tk.TclError):
+                pass
         self.geometry("1200x930")
         self.minsize(990, 760)
         self.home = user_data_dir()
@@ -127,10 +139,10 @@ class UltraDownloader(ctk.CTk):
         folder = Path.home() / "Downloads"
         self.folder_var = ctk.StringVar(value=str(s.get("folder", folder if folder.is_dir() else Path.home())))
         self.kind_var = ctk.StringVar(value=s.get("kind", "MP4 (wideo)"))
-        self.quality_var = ctk.StringVar(value=s.get("quality", QUALITY_OPTIONS[0]))
+        self.quality_var = ctk.StringVar(value=s.get("quality", "1080p (Full HD)"))
         self.speed_var = ctk.StringVar(value=s.get("speed", "Szybki"))
-        self.parallel_var = ctk.StringVar(value=str(s.get("parallel", "3")))
-        self.playlist_var = ctk.BooleanVar(value=bool(s.get("playlist", True)))
+        self.parallel_var = ctk.StringVar(value=str(s.get("parallel", "1")))
+        self.playlist_var = ctk.BooleanVar(value=bool(s.get("playlist", False)))
         self.subs_var = ctk.BooleanVar(value=bool(s.get("subtitles", False)))
         self.languages_var = ctk.StringVar(value=s.get("languages", "pl,en"))
         self.auto_update_var = ctk.BooleanVar(value=bool(s.get("auto_update", True)))
@@ -138,7 +150,7 @@ class UltraDownloader(ctk.CTk):
         self.notify_var = ctk.BooleanVar(value=bool(s.get("notify", False)))
         self.trim_start_var = ctk.StringVar(value=s.get("trim_start", ""))
         self.trim_end_var = ctk.StringVar(value=s.get("trim_end", ""))
-        self.theme_var = ctk.StringVar(value=s.get("theme", "Ciemny") if s.get("theme") in PALETTES else "Ciemny")
+        self.theme_var = ctk.StringVar(value=(s.get("theme", "Ciemny") if self._has_premium() else "Ciemny") if s.get("theme", "Ciemny") in PALETTES else "Ciemny")
         self.playlist_items_var = ctk.StringVar(value="")
         self.skip_duplicates_var = ctk.BooleanVar(value=False)
         self.schedule_var = ctk.StringVar(value="")
@@ -154,7 +166,7 @@ class UltraDownloader(ctk.CTk):
         self.order: list[str] = []
         self.task_views: dict[str, dict] = {}
         self.active_count = 0
-        self.max_parallel = max(1, min(5 if self._has_premium() else 3, int(self.parallel_var.get()) if self.parallel_var.get() in {"1","2","3","4","5"} else 3))
+        self.max_parallel = max(1, min(PREMIUM_MAX_PARALLEL if self._has_premium() else FREE_MAX_PARALLEL, int(self.parallel_var.get()) if self.parallel_var.get().isdigit() else 1))
         self.preview_image = None
         self.preview_request = 0
         self.engine_update_in_progress = False
@@ -213,7 +225,7 @@ class UltraDownloader(ctk.CTk):
         head = ctk.CTkFrame(self, fg_color=self.bg)
         head.pack(fill="x", padx=20, pady=(15, 5))
         self._text(head, "▶  YOUTUBE VIDEO DOWNLOADER", 22, bold=True).pack(side="left")
-        self._text(head, "INFINITY EDITION 5.0", 13, self.accent, bold=True).pack(side="right", padx=8)
+        self._text(head, "PREMIUM ACCESS 10.1", 13, self.accent, bold=True).pack(side="right", padx=8)
         self.premium_header = self._text(head, "", 11, self.accent, bold=True)
         self.premium_header.pack(side="right", padx=12)
         self._text(self, "Playlisty  •  MP4 / MP3  •  Napisy  •  Turbo Pro  •  Kolejka  •  Konwersja  •  Premium", 12, self.muted).pack(anchor="w", padx=25)
@@ -221,7 +233,7 @@ class UltraDownloader(ctk.CTk):
                                   segmented_button_selected_color=self.hover,
                                   segmented_button_unselected_color=self.panel2)
         self.tabs.pack(fill="both", expand=True, padx=16, pady=(7, 7))
-        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud"):
+        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0"):
             self.tabs.add(tab)
         self._download_tab(self.tabs.tab("Pobieranie"))
         self._playlist_tab(self.tabs.tab("Playlisty"))
@@ -231,6 +243,7 @@ class UltraDownloader(ctk.CTk):
         self._settings_tab(self.tabs.tab("Ustawienia"))
         self._premium_tab(self.tabs.tab("Premium"))
         self._cloud_tab(self.tabs.tab("Cloud"))
+        self._data_center_tab(self.tabs.tab("Centrum 10.0"))
         foot = ctk.CTkFrame(self, fg_color=self.bg)
         foot.pack(fill="x", padx=25, pady=(0, 10))
         self.footer_status = self._text(foot, "Gotowe do pobierania.", 11, self.muted)
@@ -273,10 +286,10 @@ class UltraDownloader(ctk.CTk):
         self.quality_menu = self._choice(options, self.quality_var, QUALITY_OPTIONS, lambda _: self._settings_changed())
         self.quality_menu.grid(row=1, column=1, sticky="ew", padx=(0, 7), pady=3)
         self._choice(options, self.speed_var, SPEED_PROFILES, lambda _: self._settings_changed()).grid(row=1, column=2, sticky="ew", padx=(0, 7), pady=3)
-        self._choice(options, self.parallel_var, ("1", "2", "3", "4", "5"), self._parallel_changed).grid(row=1, column=3, sticky="ew", pady=3)
+        self._choice(options, self.parallel_var, tuple(str(n) for n in range(1,11)), self._parallel_changed).grid(row=1, column=3, sticky="ew", pady=3)
         flags = ctk.CTkFrame(form, fg_color="transparent")
         flags.grid(row=3, column=0, sticky="ew", padx=13, pady=4)
-        self._check(flags, "Cała playlista", self.playlist_var, self._settings_changed).pack(side="left", padx=(0, 20))
+        self._check(flags, "Cała playlista (PREMIUM)", self.playlist_var, self._settings_changed).pack(side="left", padx=(0, 20))
         self._check(flags, "Pobierz napisy", self.subs_var, self._settings_changed).pack(side="left", padx=(0, 12))
         self._text(flags, "Języki:", 11, self.muted).pack(side="left")
         self._entry(flags, self.languages_var, 90).pack(side="left", padx=6)
@@ -294,7 +307,7 @@ class UltraDownloader(ctk.CTk):
         self._entry(bottom, self.folder_var).grid(row=0, column=0, sticky="ew", padx=(0, 5))
         self._button(bottom, "Folder…", self._choose_folder, secondary=True, width=92).grid(row=0, column=1, padx=(0, 5))
         self._button(bottom, "＋  DODAJ DO KOLEJKI", self._queue_downloads, width=210).grid(row=0, column=2)
-        self._text(form,"HARMONOGRAM (opcjonalnie): RRRR-MM-DD GG:MM",11,self.muted).grid(row=6,column=0,sticky="w",padx=15)
+        self._text(form,"HARMONOGRAM (PREMIUM): RRRR-MM-DD GG:MM",11,self.muted).grid(row=6,column=0,sticky="w",padx=15)
         self._entry(form,self.schedule_var,210,placeholder="2026-11-15 23:30").grid(row=7,column=0,sticky="w",padx=15,pady=(2,9))
         area = ctk.CTkFrame(root, fg_color=self.panel, corner_radius=12)
         area.grid(row=1, column=0, sticky="nsew")
@@ -313,7 +326,7 @@ class UltraDownloader(ctk.CTk):
     def _playlist_tab(self, root):
         panel=ctk.CTkFrame(root,fg_color=self.panel,corner_radius=12)
         panel.pack(fill="both",expand=True,pady=5)
-        self._text(panel,"SMART PLAYLISTS 5.0",21,self.accent,bold=True).pack(anchor="w",padx=20,pady=18)
+        self._text(panel,"SMART PLAYLISTS — PREMIUM 10.1",21,self.accent,bold=True).pack(anchor="w",padx=20,pady=18)
         self._text(panel,"W zakładce Pobieranie wklej adres playlisty, a tutaj wybierz pozycje (np. 1,3,5-9).",12,self.muted).pack(anchor="w",padx=20)
         self._text(panel,"Wybrane pozycje playlisty (puste = wszystkie)",12,self.muted).pack(anchor="w",padx=20,pady=(20,5))
         self._entry(panel,self.playlist_items_var,300,placeholder="1,3,5-10").pack(anchor="w",padx=20)
@@ -323,6 +336,9 @@ class UltraDownloader(ctk.CTk):
         self.playlist_output.pack(fill="both",expand=True,padx=20,pady=15)
 
     def _preview_playlist(self):
+        if not self._has_premium():
+            messagebox.showinfo("Premium", "Smart Playlists wymaga aktywnego Premium.")
+            return
         try:
             url=parse_urls(self.urlbox.get("1.0","end"))[0]
             if not is_playlist_url(url):raise ValueError("Podaj adres playlisty w zakładce Pobieranie.")
@@ -447,6 +463,55 @@ class UltraDownloader(ctk.CTk):
             self.live_plot.create_line(*coords,fill=self.accent,width=2,smooth=True)
         self.after(2500,self._live_tick)
 
+    def _data_center_tab(self, root):
+        panel = ctk.CTkScrollableFrame(root, fg_color=self.panel, corner_radius=12)
+        panel.pack(fill="both", expand=True, pady=4)
+        self._text(panel, "CENTRUM DANYCH I DIAGNOSTYKI 10.0", 20, bold=True).pack(anchor="w", padx=18, pady=(19, 12))
+        self._text(panel, "Kopia obejmuje ustawienia, historię i kolejkę. Nie obejmuje licencji Premium ani prywatnych kluczy.",
+                   12, self.muted, wraplength=850).pack(anchor="w", padx=18, pady=8)
+        row = ctk.CTkFrame(panel, fg_color="transparent")
+        row.pack(fill="x", padx=18, pady=14)
+        self._button(row, "Eksportuj kopię ZIP", self._export_data_backup, width=210).pack(side="left", padx=(0, 12))
+        self._button(row, "Przywróć kopię ZIP", self._import_data_backup, width=210, secondary=True).pack(side="left")
+        self._text(panel, "Po przywróceniu danych uruchom aplikację ponownie.", 12, self.muted).pack(anchor="w", padx=18)
+        self._button(panel, "Sprawdź stan programu i dysku", self._refresh_data_diagnostics, width=290).pack(anchor="w", padx=18, pady=(25, 14))
+        self.diagnostics_label = self._text(panel, "Kliknij przycisk, aby sprawdzić narzędzia i wolne miejsce.",
+                                            13, self.text, wraplength=860, justify="left")
+        self.diagnostics_label.pack(anchor="w", padx=18, pady=10)
+
+    def _refresh_data_diagnostics(self):
+        from core import tool as find_tool
+        result = diagnostics(self.home, self.folder_var.get())
+        tools = {key: bool(find_tool(key)) for key in ("yt-dlp", "ffmpeg", "ffprobe", "deno")}
+        lines = [f"Wolne miejsce: {result['wolne_gb']} GB",
+                 "Dane: " + ", ".join(f"{name}: {'OK' if exists else 'brak'}" for name, exists in result['dane'].items()),
+                 "Narzędzia: " + ", ".join(f"{name}: {'OK' if exists else 'brak'}" for name, exists in tools.items())]
+        self.diagnostics_label.configure(text="\n".join(lines))
+
+    def _export_data_backup(self):
+        path = filedialog.asksaveasfilename(title="Zapisz kopię danych", defaultextension=".zip",
+                                            filetypes=[("Archiwum ZIP", "*.zip")], initialfile="YVD_backup.zip")
+        if not path:return
+        self._save_settings()
+        self._save_queue()
+        try:
+            export_backup(self.home, path)
+            messagebox.showinfo("Kopia zapisana", f"Zapisano kopię danych: {path}")
+        except (OSError, ValueError, UnicodeError) as exc:
+            messagebox.showerror("Kopia danych", str(exc))
+
+    def _import_data_backup(self):
+        path=filedialog.askopenfilename(title="Wybierz kopię danych", filetypes=[("Archiwum ZIP", "*.zip")])
+        if not path:return
+        if not messagebox.askyesno("Przywróć dane", "Zastąpić ustawienia, historię i kolejkę danymi z kopii?\nBieżące wersje zostaną zachowane jako .before-v10."):
+            return
+        import zipfile
+        try:
+            imported=import_backup(self.home,path)
+            messagebox.showinfo("Przywrócono kopię", "Przywrócono: " + ", ".join(imported) + "\nUruchom ponownie aplikację.")
+        except (OSError, ValueError, KeyError, UnicodeError, zipfile.BadZipFile) as exc:
+            messagebox.showerror("Błąd przywracania", str(exc))
+
     def _history_tab(self, root):
         frame = ctk.CTkFrame(root, fg_color=self.panel, corner_radius=12)
         frame.pack(fill="x", pady=4)
@@ -549,7 +614,7 @@ class UltraDownloader(ctk.CTk):
         self.app_update_status.pack(anchor="w", padx=22, pady=(0, 8))
         self._text(frame, "TURBO PRO — PREMIUM", 16, self.accent, bold=True).pack(anchor="w", padx=20, pady=(23, 10))
         self._text(frame, "Standard 4 / Szybki 8 / Turbo 12 / Turbo Pro 16 lub 24 / Infinity Auto 8–32 fragmenty.\n"
-                         "Darmowa wersja: 1–3 filmy naraz. Premium: do 5 filmów naraz.\n"
+                         "Darmowa wersja: 1 film naraz do 1080p. Premium: do 10 filmów naraz.\n"
                          "Przyspieszenie zależy od źródła i łącza — więcej wątków nie zawsze pomaga.",
                    12, self.muted, wraplength=820, justify="left").pack(anchor="w", padx=20)
         self._text(frame, "Pauza zachowuje częściowe pliki .part, gdy format i serwer umożliwiają wznowienie.\n"
@@ -560,15 +625,15 @@ class UltraDownloader(ctk.CTk):
     def _premium_tab(self, root):
         frame = ctk.CTkFrame(root, fg_color=self.panel, corner_radius=13)
         frame.pack(fill="x", padx=8, pady=8)
-        self._text(frame, "💎  PREMIUM — AKTYWACJA SPECJALNYM KODEM", 21, bold=True).pack(anchor="w", padx=21, pady=(23, 7))
+        self._text(frame, "💎  PREMIUM ACCESS 10.1 — AKTYWACJA KODEM", 21, bold=True).pack(anchor="w", padx=21, pady=(23, 7))
         self.premium_info = self._text(frame, "", 13, self.accent, anchor="w")
         self.premium_info.pack(fill="x", padx=21, pady=(10, 3))
         self.premium_clock = self._text(frame, "", 18, self.accent, bold=True, anchor="w")
         self.premium_clock.pack(fill="x", padx=21, pady=(3, 6))
         self.premium_expiry = self._text(frame, "", 12, self.muted, anchor="w")
         self.premium_expiry.pack(fill="x", padx=21, pady=(0, 12))
-        self._text(frame, "Odblokowuje: Turbo Pro 16/24, 4–5 równoległych zadań, przycinanie,\n"
-                          "MKV / WEBM / WAV oraz powiadomienia Windows.", 12, self.muted,
+        self._text(frame, "Odblokowuje: 4K/8K, Turbo Infinity, playlisty, 2–10 pobrań, Video Studio,\n"
+                          "harmonogram, rozszerzone statystyki i motywy.", 12, self.muted,
                    justify="left").pack(anchor="w", padx=21, pady=(0, 14))
         self.license_box = ctk.CTkTextbox(frame, height=100, fg_color=self.bg, text_color=self.text,
                                           border_width=1, border_color=self.border, corner_radius=9)
@@ -580,6 +645,10 @@ class UltraDownloader(ctk.CTk):
         self._text(frame, "Wklej otrzymany kod YVD3-...; licencja jest weryfikowana lokalnie podpisem cyfrowym.\n"
                           "Nie udostępniaj klucza prywatnego właściciela aplikacji.",
                    11, self.muted, justify="left").pack(anchor="w", padx=21, pady=(0, 25))
+        self._text(frame, "FREE: MP4 do 1080p, MP3, 1 zadanie, historia i kopie danych.\n"
+            "PREMIUM: 4K/8K, playlisty, 10 zadań, Turbo, Studio, harmonogram, motywy.\n"
+            "Ważność: 1/7/30/90/365 dni, bezterminowo albo własny czas.",
+            12, self.muted, justify="left").pack(anchor="w",padx=21,pady=(0,15))
         self._refresh_premium_ui()
 
     def _refresh_premium_ui(self):
@@ -613,11 +682,14 @@ class UltraDownloader(ctk.CTk):
             self.premium_clock.configure(text="Pozostały czas: —", text_color=self.muted)
             self.premium_expiry.configure(text="" if state == "free" else "Nieprawidłowy zapis licencji. Aktywuj poprawny kod.")
             self.premium_header.configure(text="FREE", text_color=self.muted)
-        if not self._has_premium() and self.max_parallel > 3:
+        if not self._has_premium() and self.theme_var.get() != "Ciemny":
+            self.theme_var.set("Ciemny")
+            self.after(10, lambda: self._change_theme("Ciemny"))
+        if not self._has_premium() and self.max_parallel > FREE_MAX_PARALLEL:
             # Premium expires automatically, including while the program is open.
             # Existing downloads may finish, but no new Premium tasks may start.
-            self.max_parallel = 3
-            self.parallel_var.set("3")
+            self.max_parallel = FREE_MAX_PARALLEL
+            self.parallel_var.set("1")
             self._save_settings()
 
     def _tick_premium(self):
@@ -645,6 +717,7 @@ class UltraDownloader(ctk.CTk):
             messagebox.showerror("Kod Premium", str(exc))
             return
         self.license_box.delete("1.0", "end")
+        self._parallel_changed(self.parallel_var.get())
         self._refresh_premium_ui()
         messagebox.showinfo("Premium", "Kod został zweryfikowany. Premium jest aktywne na tym komputerze.")
         self._status("Aktywowano Premium.")
@@ -664,6 +737,10 @@ class UltraDownloader(ctk.CTk):
         self._settings_changed()
 
     def _change_theme(self, value):
+        if value != "Ciemny" and not self._has_premium():
+            self.theme_var.set("Ciemny")
+            messagebox.showinfo("Premium", "Jasny i neonowy motyw wymagają Premium.")
+            return
         self._set_palette(value)
         for w in self.winfo_children():
             w.destroy()
@@ -684,12 +761,13 @@ class UltraDownloader(ctk.CTk):
         try:
             wanted = int(value)
         except ValueError:
-            wanted = 3
-        if wanted > 3 and not self._has_premium():
-            self.parallel_var.set("3")
-            wanted = 3
-            messagebox.showinfo("Premium", "4–5 równoległych filmów wymaga kodu Premium.")
-        self.max_parallel = max(1, min(5, wanted))
+            wanted = 1
+        premium = self._has_premium()
+        if wanted > FREE_MAX_PARALLEL and not premium:
+            self.parallel_var.set("1")
+            wanted = 1
+            messagebox.showinfo("Premium", "2–10 równoległych filmów wymaga aktywnego Premium.")
+        self.max_parallel = max(1, min(PREMIUM_MAX_PARALLEL if premium else FREE_MAX_PARALLEL, wanted))
         self._settings_changed()
 
     def _save_settings(self):
@@ -791,8 +869,23 @@ class UltraDownloader(ctk.CTk):
                 self.events.put(("preview_error", sequence, str(exc)[:350]))
         threading.Thread(target=run, daemon=True).start()
 
+    def _selection(self, *, kind, quality, fragments, parallel=1, playlist=False,
+                   playlist_items="", skip_duplicates=False, schedule_at="",
+                   trim_start="", trim_end="", premium_mode=False):
+        return DownloadSelection(kind=kind, quality=quality, fragments=fragments,
+            parallel=int(parallel), playlist=playlist, playlist_items=playlist_items,
+            skip_duplicates=skip_duplicates, schedule_at=schedule_at,
+            trim_start=trim_start, trim_end=trim_end, premium_mode=premium_mode)
+
     def _premium_required(self, kind, fragments, start, end, parallel) -> bool:
-        return kind in PREMIUM_KINDS or fragments > 12 or bool(start or end) or parallel > 3
+        # Legacy helper kept for compatibility; full task policy is below.
+        return bool(kind in PREMIUM_KINDS or fragments > 12 or start or end or parallel > 1)
+
+    def _task_selection(self, task):
+        return self._selection(kind=task.kind,quality=task.quality,fragments=task.fragments,
+            parallel=1,playlist=task.playlist,playlist_items=task.playlist_items,
+            skip_duplicates=task.skip_duplicates,schedule_at=task.schedule_at,
+            trim_start=task.trim_start,trim_end=task.trim_end,premium_mode=task.premium_mode)
 
     def _queue_downloads(self):
         try:
@@ -801,31 +894,39 @@ class UltraDownloader(ctk.CTk):
             dest.mkdir(parents=True, exist_ok=True)
             kind, speed = self.kind_var.get(), self.speed_var.get()
             fragments = turbo_fragments(speed, self.live_mib) if speed == "Infinity Auto" else SPEED_PROFILES[speed]
-            if speed == "Infinity Auto" and not self._has_premium():
-                raise ValueError("Turbo Infinity jest dostępne z aktywnym Premium.")
             start, end = self.trim_start_var.get().strip(), self.trim_end_var.get().strip()
             if start or end:
                 normalize_trim_range(start, end)
-            if self._premium_required(kind, fragments, start, end, int(self.parallel_var.get())) and not self._has_premium():
-                raise ValueError("Ta funkcja wymaga aktywacji Premium w zakładce Premium.")
-            if not tool("yt-dlp.exe") and not tool("yt-dlp"):
-                raise FileNotFoundError("Brak yt-dlp.exe. Rozpakuj CAŁY artefakt EXE, wraz z narzędziami.")
             items = playlist_indices(self.playlist_items_var.get())
             when = schedule_date(self.schedule_var.get()) if self.schedule_var.get().strip() else ""
+            premium = self._has_premium()
+            parallel = int(self.parallel_var.get())
+            if not premium and len(urls) > 1:
+                raise PermissionError("W wersji FREE dodaj jeden film naraz. Pakiety adresów wymagają Premium.")
             drafts = []
             for url in urls:
-                task = DownloadTask(id=uuid.uuid4().hex, url=url, folder=dest,
-                                    kind=kind, quality=self.quality_var.get(),
-                                    playlist=self.playlist_var.get() and is_playlist_url(url),
-                                    subtitles=self.subs_var.get(), languages=self.languages_var.get(),
-                                    fragments=fragments, trim_start=start, trim_end=end,
-                                    playlist_items=items, skip_duplicates=self.skip_duplicates_var.get(),
-                                    premium_mode=speed == "Infinity Auto", schedule_at=when, title=url)
-                make_download_command(task.url, task.folder, task.kind, task.quality, playlist=task.playlist,
-                                      subtitles=task.subtitles, languages=task.languages, fragments=task.fragments,
-                                      trim_start=start, trim_end=end, playlist_items=items, skip_duplicates=task.skip_duplicates)
+                is_playlist = is_playlist_url(url)
+                if is_playlist and not premium:
+                    raise PermissionError("Całe playlisty wymagają aktywnego Premium.")
+                selection=self._selection(kind=kind,quality=self.quality_var.get(),fragments=fragments,
+                    parallel=parallel,playlist=is_playlist,playlist_items=items,
+                    skip_duplicates=self.skip_duplicates_var.get(),schedule_at=when,
+                    trim_start=start,trim_end=end,premium_mode=speed == "Infinity Auto")
+                require_access(selection,premium)
+                if not tool("yt-dlp.exe") and not tool("yt-dlp"):
+                    raise FileNotFoundError("Brak yt-dlp.exe. Rozpakuj CAŁY artefakt EXE, wraz z narzędziami.")
+                task = DownloadTask(id=uuid.uuid4().hex,url=url,folder=dest,
+                    kind=kind,quality=self.quality_var.get(),playlist=is_playlist,
+                    subtitles=self.subs_var.get(),languages=self.languages_var.get(),
+                    fragments=fragments,trim_start=start,trim_end=end,playlist_items=items,
+                    skip_duplicates=self.skip_duplicates_var.get(),premium_mode=speed == "Infinity Auto",
+                    schedule_at=when,title=url)
+                make_download_command(task.url,task.folder,task.kind,task.quality,
+                    playlist=task.playlist,subtitles=task.subtitles,languages=task.languages,
+                    fragments=task.fragments,trim_start=start,trim_end=end,
+                    playlist_items=items,skip_duplicates=task.skip_duplicates)
                 drafts.append(task)
-        except (ValueError, OSError, KeyError, FileNotFoundError) as exc:
+        except (ValueError, OSError, KeyError, FileNotFoundError, PermissionError) as exc:
             messagebox.showerror("Dodawanie", str(exc))
             return
         for task in drafts:
@@ -918,7 +1019,7 @@ class UltraDownloader(ctk.CTk):
         task = self.tasks.get(key)
         if not task or task.status not in {"Wstrzymano", "Błąd", "Przerwano"}:
             return
-        if (task.premium_mode or self._premium_required(task.kind, task.fragments, task.trim_start, task.trim_end, 1)) and not self._has_premium():
+        if paid_reason(self._task_selection(task)) and not self._has_premium():
             messagebox.showinfo("Premium", "Do wznowienia tego zadania potrzebna jest ważna licencja Premium.")
             return
         task.pause_requested = False
@@ -961,11 +1062,12 @@ class UltraDownloader(ctk.CTk):
     def _scheduler(self):
         if self.closing:
             return
-        while self.active_count < self.max_parallel:
+        allowed_parallel = min(self.max_parallel, PREMIUM_MAX_PARALLEL if self._has_premium() else FREE_MAX_PARALLEL)
+        while self.active_count < allowed_parallel:
             task = next((self.tasks[k] for k in self.order if self.tasks[k].status == "W kolejce" and not self.tasks[k].started and is_due(self.tasks[k].schedule_at)), None)
             if task is None:
                 break
-            if (task.premium_mode or self._premium_required(task.kind, task.fragments, task.trim_start, task.trim_end, 1)) and not self._has_premium():
+            if paid_reason(self._task_selection(task)) and not self._has_premium():
                 task.status = "Wstrzymano"
                 self._update_row(task)
                 self._save_queue()
@@ -1099,7 +1201,7 @@ class UltraDownloader(ctk.CTk):
                         if not quiet and messagebox.askyesno("Aktualizacja aplikacji", "Dostępne jest nowe wydanie. Otworzyć oficjalną stronę pobierania?\nInstalacja wymaga Twojego potwierdzenia."):
                             self._open_release_page()
                     else:
-                        self.app_update_status.configure(text="Masz aktualną wersję 5.0 lub brak nowszego wydania.", text_color=self.muted)
+                        self.app_update_status.configure(text="Masz aktualną wersję 10.1 lub brak nowszego wydania.", text_color=self.muted)
                         if not quiet:
                             messagebox.showinfo("Aktualizacja aplikacji", "Brak nowszego wydania GitHub Releases.")
                 elif kind == "app_update_error":

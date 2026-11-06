@@ -1,9 +1,8 @@
-# YOUTUBE VIDEO DOWNLOADER 5.0 — INFINITY EDITION
+# 10.1 — PREMIUM ACCESS
 
-- 5.0: Turbo Infinity 8/16/32, Smart Playlists, harmonogram na uruchomionym komputerze.
-- 5.0: Video Studio (konwersja, przycinanie, łączenie zgodnych plików MP4).
-- 5.0: Statystyki LIVE, ciemny Infinity UI, tytuł okna bez numeru wersji.
-- 5.0: Premium Cloud (opcjonalny Worker + D1, wystawianie / unieważnianie / przedłużanie kodów YVD5), ADMIN CENTER EXE.
-- 5.0: Auto Update 2.0 — świadome pobieranie instalatora z GitHub Releases po weryfikacji SHA256.
-- 5.0: Portable ZIP, Windows Setup.exe, offline Owner Panel EXE, Cloud Admin Center EXE.
-- Zachowano kod i dane wersji 4.1, łącznie z podpisanymi lokalnymi licencjami YVD3.
+- Jednolita polityka FREE/PREMIUM w `premium_access.py` i kontrola przy dodawaniu, wznawianiu i uruchamianiu kolejki.
+- FREE: jeden film MP4 do 1080p albo MP3; historia, kopie danych i podstawowe funkcje.
+- PREMIUM: jakość 4K/8K, Turbo Infinity, playlisty, do 10 równoległych zadań, Video Studio, harmonogram, konwersje i motywy.
+- Zachowane podpisane kody offline (1,7,30,90,365, własny okres, bezterminowo), licznik ważności i Premium Cloud.
+- W tytule okna pozostaje wyłącznie YOUTUBE VIDEO DOWNLOADER.
+- GitHub Actions: Portable, Setup.exe, Admin Center i Owner Panel.

@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 RELEASES_API = "https://api.github.com/repos/adamhalo327-jpg/YOUTUBE_VIDEO_DOWNLOADER_WINDOWS/releases/latest"
 RELEASES_WEB = "https://github.com/adamhalo327-jpg/YOUTUBE_VIDEO_DOWNLOADER_WINDOWS/releases/latest"
-CURRENT_VERSION = "5.0"
+CURRENT_VERSION = "10.1"
 
 def version_tuple(version):
     match = re.search(r"(?:^|[^0-9])(\d{1,3})\.(\d{1,3})(?:\.(\d{1,3}))?(?:$|[^0-9])", str(version))
@@ -22,7 +22,7 @@ def newer(tag, current=CURRENT_VERSION):
         return False
 
 def check_release(opener=urlopen):
-    req = Request(RELEASES_API, headers={"Accept": "application/vnd.github+json", "User-Agent": "YVD-Windows-5.0"})
+    req = Request(RELEASES_API, headers={"Accept": "application/vnd.github+json", "User-Agent": "YVD-Windows-10.1"})
     with opener(req, timeout=12) as resp:
         if getattr(resp, 'url', RELEASES_API) and urlparse(getattr(resp, 'url', RELEASES_API)).hostname != 'api.github.com':
             raise ValueError("Niedozwolone przekierowanie")

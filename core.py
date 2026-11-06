@@ -19,13 +19,13 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 APP_TITLE = "YOUTUBE VIDEO DOWNLOADER"
-APP_VERSION = "5.0 — INFINITY EDITION"
+APP_VERSION = "10.1 — PREMIUM ACCESS"
 VALID_HOSTS = frozenset({
     "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com",
     "youtu.be", "www.youtu.be", "youtube-nocookie.com", "www.youtube-nocookie.com",
 })
 QUALITY_OPTIONS = (
-    "Najlepsza dostępna", "2160p (4K)", "1440p (2K)",
+    "Najlepsza dostępna", "4320p (8K)", "2160p (4K)", "1440p (2K)",
     "1080p (Full HD)", "720p (HD)", "480p", "360p",
 )
 KINDS = ("MP4 (wideo)", "MP3 (audio)", "MKV (wideo)", "WEBM (wideo)", "WAV (audio)")
