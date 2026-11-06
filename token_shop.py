@@ -26,6 +26,7 @@ class CloudTokenShop:
         self.path=Path(path)
         self.cloud=cloud
         self._lock=threading.RLock()
+        self._wallet_id=''
         self._balance=0
         self._until=None
         self._validated=0.0
@@ -77,6 +78,7 @@ class CloudTokenShop:
             payload={'device':self.cloud.settings['device'],**(values or {})}
             result=request_json(server,path,payload,token=self._secret)
             if 'balance' in result:
+                self._wallet_id=str(result.get('wallet_id') or self._wallet_id)
                 self._balance=max(0,int(result['balance']))
                 raw=result.get('premium_until')
                 try:self._until=dt.datetime.fromisoformat(raw.replace('Z','+00:00')) if raw else None
@@ -85,6 +87,9 @@ class CloudTokenShop:
             return result
 
     def refresh(self):return self._call('/wallet/status')
+
+    @property
+    def wallet_id(self):return self._wallet_id
 
     @property
     def balance(self):return self._balance
