@@ -1,0 +1,44 @@
+name: Build ADMIN CENTER 12.1 TOKENY - Windows EXE
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  admin-center:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Pobierz kod
+        uses: actions/checkout@v4
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Zainstaluj wymagane biblioteki
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'customtkinter>=5.2.2,<6' 'Pillow>=10,<13' 'pyinstaller>=6.11,<8'
+      - name: Zweryfikuj pliki Admin Center
+        shell: pwsh
+        run: |
+          foreach ($file in @('admin_center.py','cloud_license.py','core.py')) {
+            if (-not (Test-Path $file)) { throw "Brakuje $file w glownym folderze repozytorium" }
+          }
+          python -m py_compile admin_center.py cloud_license.py core.py
+      - name: Kompilacja EXE Admin Center
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --collect-all customtkinter --name YVD_ADMIN_CENTER_12_1_TOKENY admin_center.py
+          if ($LASTEXITCODE -ne 0) { throw 'Kompilacja Admin Center nie powiodla sie' }
+          if (-not (Test-Path 'dist/YVD_ADMIN_CENTER_12_1_TOKENY.exe')) { throw 'Brak EXE' }
+      - name: Udostepnij EXE do pobrania
+        uses: actions/upload-artifact@v4
+        with:
+          name: YVD_ADMIN_CENTER_12_1_TOKENY_WINDOWS
+          path: dist/YVD_ADMIN_CENTER_12_1_TOKENY.exe
+          if-no-files-found: error
+          retention-days: 30
