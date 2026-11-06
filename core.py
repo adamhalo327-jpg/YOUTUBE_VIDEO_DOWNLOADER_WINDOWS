@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 APP_TITLE = "YOUTUBE VIDEO DOWNLOADER"
-APP_VERSION = "4.1 — ULTIMATE EDITION"
+APP_VERSION = "5.0 — INFINITY EDITION"
 VALID_HOSTS = frozenset({
     "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com",
     "youtu.be", "www.youtu.be", "youtube-nocookie.com", "www.youtube-nocookie.com",
@@ -29,8 +29,8 @@ QUALITY_OPTIONS = (
     "1080p (Full HD)", "720p (HD)", "480p", "360p",
 )
 KINDS = ("MP4 (wideo)", "MP3 (audio)", "MKV (wideo)", "WEBM (wideo)", "WAV (audio)")
-SPEED_PROFILES = {"Standard": 4, "Szybki": 8, "Turbo": 12, "Turbo Pro 16": 16, "Turbo Pro 24": 24}
-PREMIUM_SPEEDS = frozenset({"Turbo Pro 16", "Turbo Pro 24"})
+SPEED_PROFILES = {"Standard": 4, "Szybki": 8, "Turbo": 12, "Turbo Pro 16": 16, "Turbo Pro 24": 24, "Infinity Auto": 32}
+PREMIUM_SPEEDS = frozenset({"Turbo Pro 16", "Turbo Pro 24", "Infinity Auto"})
 PREMIUM_KINDS = frozenset({"MKV (wideo)", "WEBM (wideo)", "WAV (audio)"})
 MAX_HISTORY = 3000
 API_URL = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
@@ -187,18 +187,24 @@ def make_download_command(
     fragments: int = 8,
     trim_start: str = "",
     trim_end: str = "",
+    playlist_items: str = "",
+    skip_duplicates: bool = False,
     _tool=None,
     _base_command=None,
 ) -> list[str]:
     """Shell-free command, retaining 1.0's 4 positional arguments."""
     if not valid_youtube_url(url):
         raise ValueError("Wklej prawidłowy link do filmu lub playlisty YouTube.")
+    from infinity_features import playlist_indices
+    playlist_items=playlist_indices(playlist_items)
+    if playlist_items and not playlist:
+        raise ValueError("Wybrane pozycje wymagają playlisty.")
     if playlist and not is_playlist_url(url):
         raise ValueError("Pobieranie playlisty wymaga linku z parametrem list=.")
     if kind not in KINDS or quality not in QUALITY_OPTIONS:
         raise ValueError("Nieobsługiwany format lub jakość.")
-    if not isinstance(fragments, int) or fragments < 1 or fragments > 24:
-        raise ValueError("Liczba równoległych fragmentów musi być w zakresie 1–24.")
+    if not isinstance(fragments, int) or fragments < 1 or fragments > 32:
+        raise ValueError("Liczba równoległych fragmentów musi być w zakresie 1–32.")
     get_tool = _tool or tool
     ffmpeg = get_tool("ffmpeg.exe") or get_tool("ffmpeg")
     if kind != "MP4 (wideo)" and not ffmpeg:
@@ -217,6 +223,10 @@ def make_download_command(
         "--no-overwrites", "--continue", "--part", "--retries", "10", "--fragment-retries", "10",
         "--concurrent-fragments", str(fragments),
     ]
+    if playlist_items: cmd += ["--playlist-items", playlist_items]
+    if skip_duplicates:
+        archive=Path(dest) / (".yvd_archive_" + re.sub(r"[^a-z0-9]", "_", kind.lower()) + ".txt")
+        cmd += ["--download-archive", str(archive)]
     if trim_start or trim_end:
         if not ffmpeg:
             raise FileNotFoundError("Przycinanie wymaga ffmpeg.exe.")
