@@ -1,0 +1,70 @@
+name: Build YouTube Downloader EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Pobierz kod
+        uses: actions/checkout@v4
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Zainstaluj PyInstaller
+        run: python -m pip install --upgrade pyinstaller
+
+      - name: Testy kodu
+        run: python -m unittest discover -s tests -v
+
+      - name: Pobierz yt-dlp, Deno, FFmpeg i ffprobe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path vendor | Out-Null
+
+          Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile 'vendor/yt-dlp.exe'
+          & 'vendor/yt-dlp.exe' --version
+          if ($LASTEXITCODE -ne 0) { throw 'yt-dlp.exe nie dziala' }
+
+          Invoke-WebRequest -Uri 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip' -OutFile 'deno.zip'
+          Expand-Archive -Path 'deno.zip' -DestinationPath 'deno-unpacked' -Force
+          Copy-Item 'deno-unpacked/deno.exe' 'vendor/deno.exe'
+          & 'vendor/deno.exe' --version
+          if ($LASTEXITCODE -ne 0) { throw 'deno.exe nie dziala' }
+
+          Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile 'ffmpeg.zip'
+          Expand-Archive -Path 'ffmpeg.zip' -DestinationPath 'ffmpeg-unpacked' -Force
+          $ffmpeg = Get-ChildItem 'ffmpeg-unpacked' -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1
+          $ffprobe = Get-ChildItem 'ffmpeg-unpacked' -Recurse -Filter 'ffprobe.exe' | Select-Object -First 1
+          if (-not $ffmpeg -or -not $ffprobe) { throw 'Brakuje ffmpeg/ffprobe w archiwum' }
+          Copy-Item $ffmpeg.FullName 'vendor/ffmpeg.exe'
+          Copy-Item $ffprobe.FullName 'vendor/ffprobe.exe'
+          & 'vendor/ffmpeg.exe' -version
+          if ($LASTEXITCODE -ne 0) { throw 'ffmpeg.exe nie dziala' }
+
+      - name: Zbuduj aplikacje EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name YOUTUBE_VIDEO_DOWNLOADER app.py
+          if ($LASTEXITCODE -ne 0) { throw 'Kompilacja nie powiodla sie' }
+          Copy-Item 'vendor/*.exe' 'dist/YOUTUBE_VIDEO_DOWNLOADER/'
+          Copy-Item 'README_PL.md' 'dist/YOUTUBE_VIDEO_DOWNLOADER/INSTRUKCJA.txt'
+          Get-ChildItem 'dist/YOUTUBE_VIDEO_DOWNLOADER/' | Select-Object Name, Length
+
+      - name: Udostepnij gotowy program
+        uses: actions/upload-artifact@v4
+        with:
+          name: YOUTUBE_VIDEO_DOWNLOADER_WINDOWS
+          path: dist/YOUTUBE_VIDEO_DOWNLOADER/
+          if-no-files-found: error
+          retention-days: 30
