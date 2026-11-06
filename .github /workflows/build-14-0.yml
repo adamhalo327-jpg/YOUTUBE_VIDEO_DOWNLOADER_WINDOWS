@@ -1,0 +1,623 @@
+name: OFFICIAL YOUTUBE VIDEO DOWNLOADER 14.0 - Setup Portable Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Opublikuj oficjalny GitHub Release v14.0.0 po pomyslnym buildzie"
+        type: boolean
+        required: true
+        default: false
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Pobierz pliki projektu
+        uses: actions/checkout@v6
+
+      - name: Python 3.12 64-bit
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+
+      - name: Utworz automatycznie plik instalatora Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force 'installer' | Out-Null
+          @'
+          ; YOUTUBE VIDEO DOWNLOADER 14.0 PREMIUM ACCESS
+          ; Per-user installation, no admin rights; includes all PyInstaller bundled files.
+          #define AppName "YOUTUBE VIDEO DOWNLOADER"
+          #define AppVersion "14.0"
+          #define AppExe "YOUTUBE_VIDEO_DOWNLOADER.exe"
+          
+          [Setup]
+          AppId={{61B99C23-C0B6-46AE-9DF1-14BF2E4FBAC9}
+          AppName={#AppName}
+          AppVersion={#AppVersion}
+          AppVerName={#AppName} {#AppVersion}
+          AppPublisher=YOUTUBE VIDEO DOWNLOADER
+          DefaultDirName={localappdata}\Programs\YouTube Video Downloader
+          DefaultGroupName={#AppName}
+          DisableProgramGroupPage=yes
+          PrivilegesRequired=lowest
+          ArchitecturesAllowed=x64
+          WizardStyle=modern
+          Compression=lzma2
+          SolidCompression=yes
+          OutputDir=..\release
+          OutputBaseFilename=YOUTUBE_VIDEO_DOWNLOADER_14_0_SETUP
+          SetupIconFile=..\assets\YVD_ICON.ico
+          UninstallDisplayIcon={app}\{#AppExe}
+          CloseApplications=yes
+          RestartApplications=no
+          SetupLogging=yes
+          
+          [Languages]
+          Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+          
+          [Tasks]
+          Name: "desktopicon"; Description: "Utwórz skrót na pulpicie"; GroupDescription: "Dodatkowe skróty:"; Flags: unchecked
+          
+          [Files]
+          Source: "..\dist\YOUTUBE_VIDEO_DOWNLOADER\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+          Source: "..\assets\YVD_ICON.ico"; DestDir: "{app}"; Flags: ignoreversion
+          
+          [Icons]
+          Name: "{userprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\YVD_ICON.ico"
+          Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
+          
+          [Run]
+          Filename: "{app}\{#AppExe}"; Description: "Uruchom {#AppName}"; Flags: nowait postinstall skipifsilent
+          
+          ; Do not remove %LOCALAPPDATA%\YouTubeVideoDownloader on uninstall:
+          ; it contains user settings, queue, history and premium license state.
+          '@ | Set-Content -Path 'installer/YOUTUBE_VIDEO_DOWNLOADER.iss' -Encoding utf8
+          if (-not (Test-Path 'installer/YOUTUBE_VIDEO_DOWNLOADER.iss' -PathType Leaf)) { throw 'Nie udalo sie utworzyc pliku Inno Setup' }
+          Write-Host 'Plik installer/YOUTUBE_VIDEO_DOWNLOADER.iss zostal utworzony podczas kompilacji.'
+
+      - name: Oficjalna ikona 14.0 - utworz automatycznie gdy brak folderu assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path 'assets' | Out-Null
+          if (-not (Test-Path 'assets/YVD_ICON.ico' -PathType Leaf)) {
+            # Oficjalna ikona zatwierdzona do projektu, osadzona jako PNG fallback.
+            # Nie trzeba tworzyc folderu assets w przegladarce GitHub.
+            $b64 = @'
+          iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAMAAABrrFhUAAABgFBMVEXpGCIkFicaJ1pWGCfyXGDu3t3woaRdVmCh
+          DR4iVqBloN7qLU+i2vWimp+aaGpUZ5hYI1bybJP0VS72k2j43qnzpBzsrskONJEvSXCZsNOjFk/631wXZtUrlOxp
+          ia6eYpSXXiT9yTBiTC9wzvqpjlzcK4VfNYxWbNSZLZLhbcmkad00grqcOcWtgSkMPMc60//8/P0GAQMWAQInAAL5
+          AgI2AAJHAAIGBxZXAALXAQG3AQGXAQGnAQHnAgHHAQFnAQKHAQJ3AQLl5+oXFRYEDCXX19oEFTfp7PIVBRYFEij7
+          Fxf5RkdIRkfr9vkpJyc3Njf6BhS3t7jY3OOHhoa1u8TGxskEGUbUysr6JibGy9T8dXZXVVampqfJlZNoZmf+ubV4
+          d3cXCSamrLWXlpf76eknAxW8wsomBibM0dn6Nzbd4eg3Ahb8Fgr8aGUFJFh4Ahb9iIhHARdWARf919hnARWHAhUk
+          GBeWc3T9l5arsrv8V1bY+f39dWcFJ2b9qac1Kipyb0OuAABKx0lEQVR42u2diVsTy7a3u9Od7kBIwiSCE2717jPc
+          b0gnkIQkZCQMShISiMpwEA0qoCAqchQV/vVvrRq6q4cMeLzP8z33ntpbhtDp9O+tVaumVVVS9H94kv4N4N8A/g3g
+          emnfr2mqevHk/4+kqtZPqqpp/v3/UgB+TZUgjcJn/RhzpB8/fpAvtnQs/OiZbC8DV/VXUxATPlxQ1T7/lwDYR/HP
+          1TFt3A9p3J40TXsBiX59MT4O/154Jc38wtK493WYLi+17mkC/p+A/yfoV/JPG1GDCMH/uwGg+tEt/NgxVQ0EAtmM
+          LRU6p4xXytKUhpQ1E3m9wz2/0BT4IqaAMwWxFCAEsATN//sA7Gtwwx9wZ5BeTCUcaXYW/u+UzKtStpR3JvGPcLHz
+          Izp8wruPLL37SH9MpM4QAz6qJKna7wFQ0qT5Ucz5QH62nxSPd6TggcKZ7Ghdt3Yk81WCg6VE6kNA/QoI5iXtNwDQ
+          ECXkfYooi183eWPoR39n2V3S69evKQRksNUHAqmnfMj9sdFCIv6rqWeByHcg4Ck/1jsxCB/PAurpsTTXwx92B1BS
+          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
+          '@
+            [IO.File]::WriteAllBytes('assets/YVD_ICON_FALLBACK.png', [Convert]::FromBase64String(($b64 -replace '\s','')))
+            python -m pip install --disable-pip-version-check Pillow
+            if ($LASTEXITCODE -ne 0) { throw 'Pillow install failed' }
+            python -c "from PIL import Image; im=Image.open('assets/YVD_ICON_FALLBACK.png').convert('RGBA'); im.save('assets/YVD_ICON.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+            if ($LASTEXITCODE -ne 0) { throw 'Nie udalo sie utworzyc YVD_ICON.ico' }
+          }
+          if (-not (Test-Path 'assets/YVD_ICON.ico' -PathType Leaf)) { throw 'Brak ikony po automatycznej naprawie' }
+          Write-Host 'Oficjalna ikona YVD 14.0 gotowa.'
+
+      - name: Kontrola plikow i zaleznosci
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $required = @('app.py', 'gui.py', 'core.py', 'licensing.py', 'requirements.txt', 'tools/premium_generator_gui.py', 'tools/issue_premium_code.py', 'updates.py', 'download_statistics.py', 'owner_registry.py', 'cloud_license.py', 'infinity_features.py', 'video_studio.py', 'admin_center.py', 'update_management.py', 'data_center.py', 'premium_access.py', 'universal_downloader.py', 'token_shop.py', 'updates.py', 'update_management.py', 'assets/YVD_ICON.ico')
+          $missing = @($required | Where-Object { -not (Test-Path $_ -PathType Leaf) })
+          if ($missing.Count -gt 0) { throw ('Brakuje plikow w repozytorium: ' + ($missing -join ', ')) }
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Testy funkcji 1.0-14.0 i licencji Premium
+        run: |
+          python -m pip install pytest
+          python -m unittest discover -s tests -v
+
+      - name: Testy TOKEN SHOP 14.0 — SQL i API
+        shell: pwsh
+        run: |
+          python -m pip install pytest
+          python -m pytest tests -q
+
+      - name: Node.js 22 — testy Cloudflare Worker 14.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test Worker 14.0 — prawdziwe zapytania SQLite
+        shell: pwsh
+        run: |
+          node --experimental-default-type=module tests/test_worker14.mjs
+
+      - name: Pobierz narzedzia yt-dlp, Deno, FFmpeg LGPL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          New-Item -ItemType Directory -Force -Path vendor | Out-Null
+
+          Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile 'vendor/yt-dlp.exe'
+          Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS' -OutFile 'vendor/SHA2-256SUMS'
+          $line = Get-Content 'vendor/SHA2-256SUMS' | Where-Object { $_ -match '\s+\*?yt-dlp\.exe$' } | Select-Object -First 1
+          if (-not $line) { throw 'Brak sumy SHA256 dla yt-dlp.exe' }
+          $expected = ($line.Trim() -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash 'vendor/yt-dlp.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'Niezgodna suma SHA256 dla yt-dlp' }
+          & 'vendor/yt-dlp.exe' --version
+          if ($LASTEXITCODE -ne 0) { throw 'Silnik yt-dlp nie uruchomil sie' }
+
+          Invoke-WebRequest -Uri 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip' -OutFile 'deno.zip'
+          Expand-Archive 'deno.zip' 'deno-unpacked' -Force
+          $deno = Get-ChildItem 'deno-unpacked' -Recurse -Filter 'deno.exe' | Select-Object -First 1
+          if (-not $deno) { throw 'Brak deno.exe' }
+          Copy-Item $deno.FullName 'vendor/deno.exe'
+
+          Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip' -OutFile 'ffmpeg.zip'
+          Expand-Archive 'ffmpeg.zip' 'ffmpeg-unpacked' -Force
+          foreach ($binary in @('ffmpeg.exe','ffprobe.exe')) {
+            $found = Get-ChildItem 'ffmpeg-unpacked' -Recurse -Filter $binary | Select-Object -First 1
+            if (-not $found) { throw "Brakuje $binary" }
+            Copy-Item $found.FullName "vendor/$binary"
+          }
+          & 'vendor/ffmpeg.exe' -version
+          if ($LASTEXITCODE -ne 0) { throw 'FFmpeg nie uruchomil sie' }
+
+      - name: Budowa kompletnego folderu aplikacji
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all customtkinter --collect-all cryptography --hidden-import gui --hidden-import winotify --hidden-import infinity_features --hidden-import video_studio --hidden-import cloud_license --hidden-import premium_access --hidden-import token_shop --hidden-import universal_downloader --hidden-import data_center --icon assets/YVD_ICON.ico --add-data "assets/YVD_ICON.ico;assets" --name YOUTUBE_VIDEO_DOWNLOADER app.py
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller nie zbudowal EXE' }
+          $dir = 'dist/YOUTUBE_VIDEO_DOWNLOADER'
+          if (-not (Test-Path "$dir/YOUTUBE_VIDEO_DOWNLOADER.exe")) { throw 'Brak EXE' }
+          if (-not (Test-Path "$dir/_internal/assets/YVD_ICON.ico" -PathType Leaf)) { throw "Brak ikony wewnatrz aplikacji" }
+          if (-not (Test-Path "$dir/_internal" -PathType Container)) { throw 'Brak _internal, paczka Portable bylaby niepelna' }
+          Copy-Item 'vendor/*.exe' $dir
+          if (Test-Path 'README_PL.md') { Copy-Item 'README_PL.md' "$dir/INSTRUKCJA_PL.md" }
+          if (Test-Path 'THIRD_PARTY_NOTICES.md') { Copy-Item 'THIRD_PARTY_NOTICES.md' $dir }
+          foreach ($bin in @('yt-dlp.exe','deno.exe','ffmpeg.exe','ffprobe.exe')) {
+            if (-not (Test-Path "$dir/$bin" -PathType Leaf)) { throw "Brak $bin" }
+          }
+
+      - name: ZIP Portable - caly folder EXE i _internal
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force 'release' | Out-Null
+          Compress-Archive -Path 'dist/YOUTUBE_VIDEO_DOWNLOADER' -DestinationPath 'release/YOUTUBE_VIDEO_DOWNLOADER_14_0_PORTABLE.zip' -CompressionLevel Optimal -Force
+          if (-not (Test-Path 'release/YOUTUBE_VIDEO_DOWNLOADER_14_0_PORTABLE.zip')) { throw 'Nie powstal ZIP Portable' }
+
+      - name: Pobierz kompilator instalatora Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = $null
+          foreach ($base in @("${env:ProgramFiles(x86)}", "$env:ProgramFiles")) {
+            if (Test-Path $base) {
+              foreach ($folder in (Get-ChildItem $base -Directory -Filter 'Inno Setup*' -ErrorAction SilentlyContinue)) {
+                $path = Join-Path $folder.FullName 'ISCC.exe'
+                if (Test-Path $path) { $iscc = $path; break }
+              }
+            }
+            if ($iscc) { break }
+          }
+          if (-not $iscc) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Nie udalo sie zainstalowac Inno Setup' }
+          }
+
+      - name: Kompiluj instalator Windows Setup.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = $null
+          foreach ($base in @("${env:ProgramFiles(x86)}", "$env:ProgramFiles")) {
+            if (Test-Path $base) {
+              foreach ($folder in (Get-ChildItem $base -Directory -Filter 'Inno Setup*' -ErrorAction SilentlyContinue)) {
+                $path = Join-Path $folder.FullName 'ISCC.exe'
+                if (Test-Path $path) { $iscc = $path; break }
+              }
+            }
+            if ($iscc) { break }
+          }
+          if (-not $iscc) { throw 'Nie znaleziono ISCC.exe' }
+          & $iscc 'installer/YOUTUBE_VIDEO_DOWNLOADER.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup nie zbudowal instalatora' }
+          if (-not (Test-Path 'release/YOUTUBE_VIDEO_DOWNLOADER_14_0_SETUP.exe')) { throw 'Brak Setup.exe' }
+
+      - name: Wygeneruj SHA256 dla instalatora
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = 'release/YOUTUBE_VIDEO_DOWNLOADER_14_0_SETUP.exe'
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  YOUTUBE_VIDEO_DOWNLOADER_14_0_SETUP.exe" | Set-Content 'release/YVD_SETUP_SHA256.txt' -Encoding ascii
+
+      - name: Publikuj Portable ZIP
+        uses: actions/upload-artifact@v6
+        with:
+          name: YVD_14_0_PORTABLE_WINDOWS
+          path: release/YOUTUBE_VIDEO_DOWNLOADER_14_0_PORTABLE.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publikuj instalator Setup.exe
+        uses: actions/upload-artifact@v6
+        with:
+          name: YVD_14_0_INSTALLER_WINDOWS
+          path: |
+            release/YOUTUBE_VIDEO_DOWNLOADER_14_0_SETUP.exe
+            release/YVD_SETUP_SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Zbuduj panel wlasciciela Premium (oddzielny EXE)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --paths tools --collect-all cryptography --name YVD_PREMIUM_OWNER tools/premium_generator_gui.py
+          if ($LASTEXITCODE -ne 0) { throw 'Nie udalo sie zbudowac panelu wlasciciela' }
+          if (-not (Test-Path 'dist/YVD_PREMIUM_OWNER.exe')) { throw 'Brak YVD_PREMIUM_OWNER.exe' }
+
+      - name: Buduj ADMIN CENTER 14.0 dla Premium Cloud
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --collect-all customtkinter --name YVD_ADMIN_CENTER admin_center.py
+          if ($LASTEXITCODE -ne 0) { throw 'Budowa ADMIN CENTER nie powiodla sie' }
+          if (-not (Test-Path 'dist/YVD_ADMIN_CENTER.exe')) { throw 'Brak panelu ADMIN CENTER' }
+
+      - name: Publikuj ADMIN CENTER 14.0
+        uses: actions/upload-artifact@v6
+        with:
+          name: YVD_14_0_ADMIN_CENTER_WINDOWS
+          path: dist/YVD_ADMIN_CENTER.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publikuj panel wlasciciela bez klucza prywatnego
+        uses: actions/upload-artifact@v6
+        with:
+          name: YVD_14_0_PREMIUM_OWNER_WINDOWS
+          path: dist/YVD_PREMIUM_OWNER.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Oficjalny GitHub Release v14.0.0 - tylko na zyczenie
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release == true }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v14.0.0'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Wydanie $tag juz istnieje. Zmien tag lub edytuj je recznie — bez automatycznego nadpisywania." }
+          git ls-remote --exit-code --tags origin "refs/tags/$tag" *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Tag $tag juz istnieje. Wymagana reczna weryfikacja zamiast zmiany historii." }
+          @'
+          # YOUTUBE VIDEO DOWNLOADER 14.0 — TOKEN SHOP MISSIONS
+
+          Oficjalna aktualizacja Windows 10/11 x64 z nowa ikona aplikacji.
+
+          **Setup.exe** — instalator Windows.
+          **Portable.zip** — wersja przenosna z calym folderem `_internal`.
+          **SHA256** — suma kontrolna instalatora.
+
+          Premium Cloud korzysta z osobnego serwera licencji. Nie udostepniaj kluczy wlasciciela ani ADMIN_TOKEN.
+          Pobieraj tylko materialy, do ktorych masz uprawnienia.
+          '@ | Set-Content -Path 'release/RELEASE_NOTES.md' -Encoding utf8
+          gh release create $tag `
+            'release/YOUTUBE_VIDEO_DOWNLOADER_14_0_SETUP.exe' `
+            'release/YOUTUBE_VIDEO_DOWNLOADER_14_0_PORTABLE.zip' `
+            'release/YVD_SETUP_SHA256.txt' `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title 'YOUTUBE VIDEO DOWNLOADER 14.0 — TOKEN SHOP MISSIONS' `
+            --notes-file 'release/RELEASE_NOTES.md' `
+            --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Nie udalo sie opublikowac oficjalnego GitHub Release' }
