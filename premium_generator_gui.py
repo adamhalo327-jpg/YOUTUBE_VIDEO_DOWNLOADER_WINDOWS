@@ -10,6 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from issue_premium_code import issue, load_key, PRESET_DAYS
+from owner_registry import record_issue, read_registry, export_csv
 
 BG = "#0C1324"
 PANEL = "#17243C"
@@ -22,8 +23,8 @@ class OwnerPanel(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("ULTRA DOWNLOADER — PANEL WŁAŚCICIELA PREMIUM")
-        self.geometry("760x710")
-        self.minsize(670, 640)
+        self.geometry("800x790")
+        self.minsize(670, 670)
         self.configure(bg=BG)
 
         self.pem_path = tk.StringVar()
@@ -90,6 +91,8 @@ class OwnerPanel(tk.Tk):
                   fg=BG, relief="flat", padx=16).pack(side="left")
         tk.Button(actions, text="Zapisz kod do TXT", command=self._save, bg="#324561",
                   fg=TEXT, relief="flat", padx=16).pack(side="left", padx=10)
+        tk.Button(actions, text="Rejestr wydanych kodów", command=self._show_registry,
+                  bg="#324561", fg=TEXT, relief="flat", padx=12).pack(side="left", padx=8)
         self._refresh_preview()
 
     def _label(self, parent, value, small=False):
@@ -140,9 +143,46 @@ class OwnerPanel(tk.Tk):
             messagebox.showerror("Nie można utworzyć kodu", str(exc))
             return
         self.code = code
+        try:
+            expiry = None if not any((days, hours, minutes)) else (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=days, hours=hours, minutes=minutes)).isoformat()
+            record_issue(code, self.customer_name.get(), expiry)
+        except (OSError, ValueError) as exc:
+            messagebox.showwarning("Rejestr", "Kod utworzony, ale nie udało się zapisać historii: " + str(exc))
         self.result.delete("1.0", "end")
         self.result.insert("1.0", code)
         messagebox.showinfo("Premium", "Kod Premium został wygenerowany i podpisany.")
+
+    def _show_registry(self):
+        window = tk.Toplevel(self)
+        window.title("PREMIUM — HISTORIA WYDANYCH KODÓW")
+        window.geometry("860x510")
+        window.configure(bg=BG)
+        tk.Label(window, text="LOKALNY REJESTR KODÓW PREMIUM", font=("Segoe UI", 16, "bold"),
+                 bg=BG, fg=ACCENT).pack(anchor="w", padx=15, pady=12)
+        tk.Label(window, text="To rejestr kodów utworzonych na tym komputerze. Nie pokazuje użycia na innych komputerach.",
+                 bg=BG, fg=MUTED).pack(anchor="w", padx=15)
+        holder = tk.Frame(window)
+        holder.pack(fill="both", expand=True, padx=15, pady=12)
+        cols = ('name', 'issued_at', 'expires_at', 'fingerprint')
+        table = ttk.Treeview(holder, columns=cols, show='headings')
+        for key, label, width in [('name','Odbiorca',170),('issued_at','Wystawiono',210),('expires_at','Wygasa',220),('fingerprint','Identyfikator',150)]:
+            table.heading(key, text=label)
+            table.column(key, width=width)
+        table.pack(fill='both', expand=True)
+        try:
+            for record in read_registry():
+                table.insert('', 'end', values=tuple(record.get(k, '') for k in cols))
+        except (OSError, ValueError) as error:
+            messagebox.showerror('Rejestr', str(error), parent=window)
+        def export():
+            target = filedialog.asksaveasfilename(parent=window, defaultextension='.csv', filetypes=[('CSV','*.csv')])
+            if target:
+                try:
+                    export_csv(target)
+                    messagebox.showinfo('Eksport', 'Zapisano rejestr CSV.', parent=window)
+                except (OSError, ValueError) as error:
+                    messagebox.showerror('Eksport', str(error), parent=window)
+        tk.Button(window, text='Eksportuj CSV', command=export, bg=ACCENT, fg=BG).pack(pady=(0, 12))
 
     def _copy(self):
         if not self.code:

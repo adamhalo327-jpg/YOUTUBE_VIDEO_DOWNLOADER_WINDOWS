@@ -27,6 +27,8 @@ from core import (
     valid_youtube_url, valid_video_url, yt_base_command as _yt_base_command,
 )
 from licensing import LicenseManager, format_remaining
+from download_statistics import summarize, readable_bytes
+from updates import check_release, RELEASES_WEB
 
 # Public compatibility with 1.0 tests / 2.0 integrations.
 def yt_base_command():
@@ -118,6 +120,7 @@ class UltraDownloader(ctk.CTk):
         self.subs_var = ctk.BooleanVar(value=bool(s.get("subtitles", False)))
         self.languages_var = ctk.StringVar(value=s.get("languages", "pl,en"))
         self.auto_update_var = ctk.BooleanVar(value=bool(s.get("auto_update", True)))
+        self.auto_app_updates_var = ctk.BooleanVar(value=bool(s.get("auto_app_updates", True)))
         self.notify_var = ctk.BooleanVar(value=bool(s.get("notify", False)))
         self.trim_start_var = ctk.StringVar(value=s.get("trim_start", ""))
         self.trim_end_var = ctk.StringVar(value=s.get("trim_end", ""))
@@ -140,6 +143,8 @@ class UltraDownloader(ctk.CTk):
         self._settings_changed()
         self._render_history()
         self._refresh_stats()
+        self._refresh_dashboard()
+        self.after(5500, self._check_app_update_auto)
         self.after(100, self._drain_events)
         self.after(400, self._scheduler)
         self.after(1000, self._tick_premium)
@@ -183,7 +188,7 @@ class UltraDownloader(ctk.CTk):
         head = ctk.CTkFrame(self, fg_color=self.bg)
         head.pack(fill="x", padx=20, pady=(15, 5))
         self._text(head, "▶  YOUTUBE VIDEO DOWNLOADER", 22, bold=True).pack(side="left")
-        self._text(head, "ULTIMATE EDITION 4.0", 13, self.accent, bold=True).pack(side="right", padx=8)
+        self._text(head, "ULTIMATE EDITION 4.1", 13, self.accent, bold=True).pack(side="right", padx=8)
         self.premium_header = self._text(head, "", 11, self.accent, bold=True)
         self.premium_header.pack(side="right", padx=12)
         self._text(self, "Playlisty  •  MP4 / MP3  •  Napisy  •  Turbo Pro  •  Kolejka  •  Konwersja  •  Premium", 12, self.muted).pack(anchor="w", padx=25)
@@ -191,10 +196,11 @@ class UltraDownloader(ctk.CTk):
                                   segmented_button_selected_color=self.hover,
                                   segmented_button_unselected_color=self.panel2)
         self.tabs.pack(fill="both", expand=True, padx=16, pady=(7, 7))
-        for tab in ("Pobieranie", "Historia", "Ustawienia", "Premium"):
+        for tab in ("Pobieranie", "Historia", "Statystyki", "Ustawienia", "Premium"):
             self.tabs.add(tab)
         self._download_tab(self.tabs.tab("Pobieranie"))
         self._history_tab(self.tabs.tab("Historia"))
+        self._statistics_tab(self.tabs.tab("Statystyki"))
         self._settings_tab(self.tabs.tab("Ustawienia"))
         self._premium_tab(self.tabs.tab("Premium"))
         foot = ctk.CTkFrame(self, fg_color=self.bg)
@@ -284,6 +290,49 @@ class UltraDownloader(ctk.CTk):
         self.history_scroll = ctk.CTkScrollableFrame(root, fg_color=self.panel, corner_radius=12)
         self.history_scroll.pack(fill="both", expand=True)
 
+    def _statistics_tab(self, root):
+        panel = ctk.CTkFrame(root, fg_color=self.panel, corner_radius=12)
+        panel.pack(fill="both", expand=True, pady=4)
+        self._text(panel, "STATYSTYKI POBIERANIA 4.1", 21, bold=True).pack(anchor="w", padx=22, pady=(24, 12))
+        self.stats_total = self._text(panel, "", 17, self.accent, bold=True, anchor="w")
+        self.stats_total.pack(fill="x", padx=22, pady=7)
+        self.stats_space = self._text(panel, "", 15, self.text, anchor="w")
+        self.stats_space.pack(fill="x", padx=22, pady=7)
+        self.stats_types = self._text(panel, "", 14, self.muted, anchor="w", wraplength=850)
+        self.stats_types.pack(fill="x", padx=22, pady=7)
+        self._text(panel, "Statystyki są lokalne: obliczane z historii i plików istniejących na tym komputerze.\n"
+                    "Rozmiar nie uwzględnia skasowanych plików ani zapisów wskazujących folder.",
+                   12, self.muted, anchor="w", justify="left").pack(fill="x", padx=22, pady=15)
+        self._button(panel, "Odśwież statystyki", self._refresh_dashboard, width=200).pack(anchor="w", padx=22, pady=10)
+
+    def _refresh_dashboard(self):
+        result = summarize(self.history.all())
+        self.stats_total.configure(text=f"Wpisy w historii: {result['count']}")
+        self.stats_space.configure(text=f"Rozmiar istniejących plików: {readable_bytes(result['bytes'])}")
+        breakdown = ",  ".join(f"{k}: {v}" for k,v in sorted(result['formats'].items()))
+        self.stats_types.configure(text="Formaty: " + (breakdown or "brak") + f"    •    Niedostępne ścieżki: {result['missing']}")
+
+    def _check_app_update_auto(self):
+        if self.auto_app_updates_var.get() and not self.closing:
+            self._check_app_update(quiet=True)
+
+    def _check_app_update(self, quiet=False):
+        if getattr(self, '_app_update_busy', False):
+            return
+        self._app_update_busy = True
+        self.app_update_status.configure(text="Sprawdzam wydania programu…")
+        def worker():
+            try:
+                result = check_release()
+                self.events.put(("app_update", result, quiet))
+            except Exception as err:
+                self.events.put(("app_update_error", str(err)[:180], quiet))
+        self.pool.submit(worker)
+
+    def _open_release_page(self):
+        import webbrowser
+        webbrowser.open(RELEASES_WEB)
+
     def _settings_tab(self, root):
         frame = ctk.CTkScrollableFrame(root, fg_color=self.panel, corner_radius=12)
         frame.pack(fill="both", expand=True, pady=4)
@@ -300,6 +349,16 @@ class UltraDownloader(ctk.CTk):
         self.engine_status = self._text(engine, "Aktualizacja silnika z oficjalnego wydania yt-dlp, weryfikacja SHA256.", 11,
                                         self.muted, wraplength=440, justify="left")
         self.engine_status.pack(side="left")
+        self._text(frame, "AKTUALIZACJE SAMEJ APLIKACJI", 16, self.accent, bold=True).pack(anchor="w", padx=20, pady=(18, 8))
+        self._check(frame, "Automatycznie sprawdzaj nowe wydania na GitHub Releases po uruchomieniu",
+                    self.auto_app_updates_var, self._save_settings).pack(anchor="w", padx=20, pady=6)
+        upd = ctk.CTkFrame(frame, fg_color="transparent")
+        upd.pack(fill="x", padx=18, pady=6)
+        self._button(upd, "Sprawdź aktualizację programu", lambda: self._check_app_update(quiet=False), width=260).pack(side="left", padx=4)
+        self._button(upd, "Otwórz wydania GitHub", self._open_release_page, secondary=True, width=205).pack(side="left", padx=6)
+        self.app_update_status = self._text(frame, "Nowe wydania są sprawdzane na GitHub Releases. Instalację zatwierdzasz samodzielnie.",
+                                            11, self.muted, wraplength=830, justify="left")
+        self.app_update_status.pack(anchor="w", padx=22, pady=(0, 8))
         self._text(frame, "TURBO PRO — PREMIUM", 16, self.accent, bold=True).pack(anchor="w", padx=20, pady=(23, 10))
         self._text(frame, "Standard 4 / Szybki 8 / Turbo 12 / Turbo Pro 16 lub 24 fragmenty równocześnie.\n"
                          "Darmowa wersja: 1–3 filmy naraz. Premium: do 5 filmów naraz.\n"
@@ -440,7 +499,7 @@ class UltraDownloader(ctk.CTk):
             "quality": self.quality_var.get(), "speed": self.speed_var.get(),
             "parallel": self.parallel_var.get(), "playlist": self.playlist_var.get(),
             "subtitles": self.subs_var.get(), "languages": self.languages_var.get(),
-            "auto_update": self.auto_update_var.get(), "notify": self.notify_var.get(),
+            "auto_update": self.auto_update_var.get(), "auto_app_updates": self.auto_app_updates_var.get(), "notify": self.notify_var.get(),
             "trim_start": self.trim_start_var.get(), "trim_end": self.trim_end_var.get(),
             "theme": self.theme_var.get(),
         })
@@ -827,6 +886,22 @@ class UltraDownloader(ctk.CTk):
                     self.engine_update_in_progress = False
                     self.engine_status.configure(text=ev[1], text_color=self.error if ev[2] else self.accent)
                     self._status(ev[1])
+                elif kind == "app_update":
+                    self._app_update_busy = False
+                    result, quiet = ev[1], ev[2]
+                    if result['newer']:
+                        self.app_update_status.configure(text=f"Nowa wersja {result['tag']} dostępna na GitHub Releases.", text_color=self.accent)
+                        if not quiet and messagebox.askyesno("Aktualizacja aplikacji", "Dostępne jest nowe wydanie. Otworzyć oficjalną stronę pobierania?\nInstalacja wymaga Twojego potwierdzenia."):
+                            self._open_release_page()
+                    else:
+                        self.app_update_status.configure(text="Masz aktualną wersję 4.1 lub brak nowszego wydania.", text_color=self.muted)
+                        if not quiet:
+                            messagebox.showinfo("Aktualizacja aplikacji", "Brak nowszego wydania GitHub Releases.")
+                elif kind == "app_update_error":
+                    self._app_update_busy = False
+                    self.app_update_status.configure(text="Nie udało się sprawdzić wydań: " + ev[1], text_color=self.error)
+                    if not ev[2]:
+                        messagebox.showwarning("Aktualizacja aplikacji", "Sprawdzenie nie powiodło się: " + ev[1])
                 elif kind in {"progress", "item", "file", "final"}:
                     key = ev[1]
                     if key not in self.tasks:
@@ -870,6 +945,7 @@ class UltraDownloader(ctk.CTk):
         self.history_render_pending = False
         if not self.closing:
             self._render_history()
+            self._refresh_dashboard()
 
     def _render_history(self):
         for w in self.history_scroll.winfo_children():
@@ -893,6 +969,7 @@ class UltraDownloader(ctk.CTk):
         if messagebox.askyesno("Historia", "Wyczyścić historię? Pliki pozostaną na dysku."):
             self.history.clear()
             self._render_history()
+            self._refresh_dashboard()
 
     def _refresh_stats(self):
         active = sum(1 for t in self.tasks.values() if t.status == "Pobieranie")

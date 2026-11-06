@@ -1,7 +1,7 @@
 ; YOUTUBE VIDEO DOWNLOADER 4.0 ULTIMATE EDITION
 ; Per-user installation, no admin rights; includes all PyInstaller bundled files.
 #define AppName "YOUTUBE VIDEO DOWNLOADER"
-#define AppVersion "4.0"
+#define AppVersion "4.1"
 #define AppExe "YOUTUBE_VIDEO_DOWNLOADER.exe"
 
 [Setup]
@@ -19,7 +19,7 @@ WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
 OutputDir=..\release
-OutputBaseFilename=YOUTUBE_VIDEO_DOWNLOADER_4_0_SETUP
+OutputBaseFilename=YOUTUBE_VIDEO_DOWNLOADER_4_1_SETUP
 UninstallDisplayIcon={app}\{#AppExe}
 CloseApplications=yes
 RestartApplications=no
