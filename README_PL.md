@@ -1,90 +1,55 @@
-# YOUTUBE VIDEO DOWNLOADER 2.0 — ULTRA DOWNLOADER (Windows)
+# YOUTUBE VIDEO DOWNLOADER 3.0 — PRO EDITION
 
-Aktualizacja działającego programu 1.0, zachowuje pobieranie MP4/MP3, jakości do 4K, wybór folderu, podgląd postępu i anulowanie.
+**Windows 10/11, GitHub Actions EXE.** Pobieraj wyłącznie materiały, do których masz prawa lub zgodę. Narzędzie nie omija DRM. Dostępność jakości, napisów i prędkość zależą od serwisu i materiału; warunki korzystania z YouTube mogą ograniczać pobieranie.
 
-## 9 funkcji wersji 2.0
+## Funkcje
 
-1. **Całe playlisty**: wklej `youtube.com/playlist?list=...` lub `watch?v=...&list=...`, zaznacz opcję playlisty.
-2. **Miniatura + tytuł**: wklej link, kliknij **Podgląd**. Dla playlist podgląd sprawdza maksymalnie 30 pierwszych pozycji.
-3. **Kilka filmów naraz**: wklej wiele linków (jeden w linii) i kliknij **Dodaj do pobierania**; jednocześnie mogą pracować 1, 2 lub 3 zadania.
-4. **Najlepsza jakość automatycznie**: ustaw „Najlepsza dostępna”, jeśli chcesz maksymalną jakość udostępnioną przez serwis; można ustawić ograniczenie 360p–4K.
-5. **Historia**: zakładka Historia przechowuje ukończone pobrania, w tym elementy playlist, w `%LOCALAPPDATA%\YouTubeVideoDownloader\history.json`.
-6. **Nowoczesny interfejs**: ciemny motyw, kolejka, pasek postępu, osobne zakładki historii i ustawień.
-7. **Automatyczna aktualizacja yt-dlp**: program raz na dobę sprawdza oficjalne wydanie na GitHub; plik jest weryfikowany SHA256 przed zastąpieniem. Można wyłączyć lub uruchomić ręcznie. To aktualizuje *silnik yt-dlp*, nie aplikację, Deno ani FFmpeg.
-8. **Napisy**: zaznacz napisy, wybierz języki, np. `pl,en`. Zapisuje dostępne napisy / napisy automatyczne do `.srt` obok wideo. Niedostępne języki nie są tworzone sztucznie.
-9. **Szybsze długie filmy**: profile Standard (4 fragmenty), Szybki (8 fragmentów), Turbo (12 fragmentów) — przyspieszenie możliwe dla formatów podzielonych na fragmenty. Efekt zależy od internetu, serwera i limitów YouTube. Jednoczesne pobieranie kilku filmów może obciążać łącze.
+Wszystko z wersji 2.0: linki do filmów, Shorts i playlist, podgląd miniatury i tytułu, MP4 / MP3, najlepsza jakość, napisy pl,en, historia, aktualizacje silnika yt-dlp zweryfikowane SHA256, praca 1–3 filmów równocześnie, Turbo do 12 fragmentów.
 
-**Nie wszystkie formaty, materiały, napisy i jakości są zawsze dostępne. Nie ma gwarancji konkretnej prędkości ani obsługi filmów chronionych, płatnych lub wymagających autoryzacji.** Program nie obchodzi DRM.
+Nowości 3.0: ręczne przesuwanie pozycji ↑ ↓, ponowienie nieudanych zadań, pauza i wznowienie częściowych pobrań, zapisywana po restarcie kolejka, przeszukiwanie historii, motywy ciemny/jasny/neonowy, konwersja MKV/WEBM/WAV, przycinanie od/do, powiadomienia Windows oraz TURBO PRO 16/24 fragmenty i do 5 jednoczesnych filmów.
 
-## Aktualizacja repozytorium z 1.0
+**Premium z kodem:** darmowa wersja zachowuje funkcje 2.0 plus kolejkę, pauzę, wyszukiwarkę i motywy. Kod Premium odblokowuje Turbo Pro, 4–5 pobrań naraz, przycinanie, nowe formaty MKV/WEBM/WAV oraz powiadomienia Windows.
 
-W istniejącym repozytorium GitHub (`YOUTUBE_VIDEO_DOWNLOADER_WINDOWS`) dodaj lub zastąp następujące pliki:
+## Instalacja przez GitHub w przeglądarce
 
-```text
-YOUTUBE_VIDEO_DOWNLOADER_WINDOWS/
-├── app.py                       (zastąp wersję 1.0)
-├── core.py                      (nowy)
-├── requirements.txt             (nowy)
-├── README_PL.md                 (zastąp)
-├── tests/
-│   └── test_core.py             (nowy)
-└── .github/
-    └── workflows/
-        └── build-windows.yml   (zastąp poprzedni workflow)
-```
+1. Rozpakuj `YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO_GITHUB.zip` na komputerze.
+2. Wejdź do swojego repozytorium na https://github.com/adamhalo327-jpg/YOUTUBE_VIDEO_DOWNLOADER_WINDOWS (jeśli nadal używasz tego repozytorium).
+3. Zakładka **Code → Add file → Upload files**. Przeciągnij **zawartość** rozpakowanego ZIP, zachowując strukturę folderów. Zatwierdź **Commit changes**. Nie wysyłaj samego ZIP do repozytorium — GitHub go nie rozpakowuje.
+4. Jeżeli folder `.github` nie jest przesłany: wejdź w **Add file → Create new file** i jako nazwę wpisz `.github/workflows/build-windows.yml`, a do edytora wklej zawartość pliku z ZIP.
+5. Sprawdź obecność: `app.py`, `gui.py`, `core.py`, `licensing.py`, `requirements.txt`, `.github/workflows/build-windows.yml`, `tests/*.py`.
+6. W GitHub Actions wybierz **Build YouTube Downloader 3.0 PRO EXE**. Uruchom **Run workflow** (jeśli brak automatycznej kompilacji).
+7. Po zielonym **Success** pobierz w sekcji **Artifacts** archiwum `YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO_WINDOWS`. Rozpakuj cały folder i uruchom `YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO.exe`.
 
-Możesz pozostawić poprzedni plik `tests/test_app.py` — funkcje testowane w wersji 1.0 zostały utrzymane. **Uwaga**: dla nowych funkcji testy są w `tests/test_core.py`. GitHub Actions sam rozpozna strukturę folderów; sam plik ZIP **nie jest rozpakowywany przez GitHub**. Musisz rozpakować paczkę na PC i skopiować jej *zawartość* do głównego katalogu repozytorium.
+**Uwaga:** pliki `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe` i `deno.exe` są pobierane przez workflow, więc nie musisz instalować ręcznie Pythona ani FFmpeg. Nie wyjmuj EXE z folderu z narzędziami i podfolderem `_internal`. Kompilacja wymaga Internetu.
 
-### Instalacja przez GitHub Desktop (Windows)
+## Aktywacja Premium
 
-1. Pobierz ZIP 2.0, wybierz **Wyodrębnij wszystkie**.
-2. W GitHub Desktop otwórz istniejące repozytorium i **Repository → Show in Explorer**.
-3. Skopiuj wszystkie pliki i foldery z rozpakowanej paczki do repozytorium, zgadzając się na zastąpienie starszych plików.
-4. Sprawdź, czy `core.py` i `.github\workflows\build-windows.yml` znajdują się w odpowiednich miejscach.
-5. Wróć do GitHub Desktop → **Changes** → wpisz `ULTRA DOWNLOADER 2.0` → **Commit to main** → **Push origin**.
-6. Wejdź na GitHub → **Actions** → **Build YouTube Downloader 2.0 EXE** → **Run workflow** (lub wybierz automatyczny build wywołany przez Push).
-7. Po zielonym **Success**, otwórz wynik run → **Artifacts / Artefakty** → `YOUTUBE_VIDEO_DOWNLOADER_2_0_WINDOWS`.
-8. Rozpakuj cały artefakt. Uruchom `YOUTUBE_VIDEO_DOWNLOADER_2_0.exe` **z rozpakowanego folderu**.
+Otwórz zakładkę **Premium** → wklej pełny **YVD3-...** → **AKTYWUJ PREMIUM**. Kod ma cyfrowy podpis Ed25519; nie da się tworzyć poprawnych kodów bez klucza prywatnego. Działa offline przy aktywacji, bez logowania. Może mieć datę wygaśnięcia lub być bezterminowy. Kod przechowywany jest lokalnie w `%LOCALAPPDATA%\YouTubeVideoDownloader\premium-license.json`.
 
-**NIE uruchamiaj EXE prosto z ZIP. NIE przenoś samego EXE.** Obok niego muszą zostać yt-dlp.exe, deno.exe, ffmpeg.exe, ffprobe.exe i folder `_internal`.
-
-## Uruchomienie lokalne, bez GitHub Actions
-
-Wymaga Python 3.12+; w folderze z kodem uruchom:
+**Dla właściciela:** osobno od ZIP otrzymujesz plik `YVD_3_0_WLASCICIEL_KLUCZ_PRYWATNY.pem` oraz pierwszy osobisty kod. Zachowaj PEM prywatnie, nigdy nie wgrywaj go do GitHub ani nie dołączaj do artefaktu EXE. Repozytorium zawiera wyłącznie klucz **publiczny**. Nowe kody można wystawiać na komputerze z Pythonem i pakietem `cryptography`:
 
 ```powershell
-python -m pip install -r requirements.txt
-python app.py
+python -m pip install cryptography
+python tools/issue_premium_code.py --key "C:\BezpiecznyFolder\YVD_3_0_WLASCICIEL_KLUCZ_PRYWATNY.pem" --name "Klient" --days 365
 ```
 
-Zainstaluj `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, `deno.exe` w tym samym folderze lub w PATH. Wersja z workflow GitHub Actions dołącza te pliki automatycznie.
+Użyj `--days 0` dla kodu bezterminowego. Bez osobnego serwera nie ma centralnego cofania kodów ani przypisywania kodu do konkretnego komputera; kod może zostać skopiowany przez odbiorcę.
 
-## Testy
+## Jak korzystać
 
-```powershell
-python -m unittest discover -s tests -v
-```
+- **Wznawianie**: kliknij Pauza przy zadaniu, następnie Wznów. Program próbuje użyć `.part` (yt-dlp `--continue --part`). Po ponownym otwarciu programu zadania pozostają w stanie Wstrzymano. Uwaga: nie każde źródło/format pozwala na pobieranie od miejsca przerwania; nie przenoś częściowych plików.
+- **Kolejka**: `↑` / `↓` dla pozycji oczekujących, `Wznów` dla wstrzymanych/nieudanych, `Usuń` dla zadań zbędnych.
+- **Przycinanie**: wpisz Od i Do jako `MM:SS` albo `HH:MM:SS`, np. Od `01:20`, Do `02:10`. Wymaga FFmpeg i Premium. Przycinanie po klatkach kluczowych lub z wymuszaniem klatek może spowalniać przetwarzanie. Przy playlistach zastosuje taki sam przedział do każdego filmu.
+- **Konwersja**: wybierz MKV, WEBM lub WAV w FORMAT. Konwersja do WEBM może być wielokrotnie wolniejsza, ponieważ FFmpeg musi ponownie kodować obraz i dźwięk. MP4 i MP3 pozostają dostępne bez Premium.
+- **Turbo Pro**: szybciej tylko, jeśli serwer dostarcza niezależne fragmenty. 24 równoległe fragmenty nie oznaczają 24× większej prędkości i mogą zwiększać obciążenie.
+- **Napisy**: opcja pobiera dostępne języki lub automatyczne napisy, jeśli YouTube je udostępnia. Nie dla każdego filmu są napisy.
+- **Historia**: tytuł, URL, rodzaj pliku i ścieżka; filtr działa lokalnie, dane nie są wysyłane na serwer aplikacji.
+- **Aktualizacje silnika**: w ustawieniach pobierane jest `yt-dlp.exe` z oficjalnego wydania yt-dlp i weryfikowana jest suma SHA256. FFmpeg, Deno i sama aplikacja nie są aktualizowane automatycznie.
 
-Testy nie łączą się z YouTube. Testują walidację adresów, budowanie poleceń, archiwum historii, języki napisów, parsowanie postępu, kontrolę SHA256 i profile Turbo.
+## Gdzie przechowywane są dane?
 
-## Rozwiązywanie problemów
+`%LOCALAPPDATA%\YouTubeVideoDownloader\` zawiera historię, ustawienia, zapamiętaną kolejkę, licencję i nowszy zweryfikowany silnik. Twoje pobrane filmy są w folderze wskazanym w programie. Dane z 2.0 zachowują się: ta sama lokalizacja `history.json` i `settings.json`, nowa kolejka trafia do `queue-v3.json`.
 
-- **Ostrzeżenie Node.js 20**: workflow 2.0 korzysta z akcji Node.js 24 (`checkout@v6`, `setup-python@v6`, `upload-artifact@v6`).
-- **Brak yt-dlp.exe**: uruchom program z całym folderem pobranego artefaktu.
-- **Nie ma dźwięku / MP3 / napisy nie działają**: sprawdź czy obok EXE leży `ffmpeg.exe`.
-- **Film pobiera się powoli**: przetestuj „Szybki” lub „Turbo”. Nie wszystkie źródła udostępniają fragmenty; 3 równoległe filmy mogą spowolnić każde pobieranie.
-- **Błąd 403 / format niedostępny**: najpierw spróbuj **Ustawienia → Sprawdź aktualizację teraz**. Nie wszystkie materiały mogą zostać pobrane.
-- **Aktualizacja narzędzia nieudana**: program użyje dołączonego yt-dlp.exe. Spróbuj ponownie przy stabilnym połączeniu.
-- **Zatrzymane pobieranie**: fragmenty `.part` mogą zostać wznowione po ponownym dodaniu tego samego URL.
-- **Nie ma playlisty**: włącz „Cała playlista” i użyj adresu z `list=`.
-- **Brak uprawnień**: wybierz folder zapisu w katalogu użytkownika, np. `Pobrane`.
-- **SmartScreen / ostrzeżenie Windows**: niepodpisane EXE może być blokowane. Uruchamiaj wyłącznie pliki, którym ufasz.
+## Testy i ograniczenia
 
-## Bezpieczeństwo / licencje
-
-- Kod przeznaczony do pobierania wyłącznie własnych / uprawnionych treści; przestrzegaj warunków YouTube: <https://www.youtube.com/t/terms>.
-- Silnik pobierania: <https://github.com/yt-dlp/yt-dlp>.
-- Środowisko JS: <https://github.com/denoland/deno>.
-- FFmpeg: <https://github.com/BtbN/FFmpeg-Builds> — w tym workflow używamy kompilacji **GPL**, więc przy publicznym redystrybuowaniu należy spełnić obowiązki licencyjne FFmpeg i pozostałych komponentów.
-- UI: <https://github.com/TomSchimansky/CustomTkinter>.
-- Zapis historii i ustawień jest lokalny w profilu użytkownika, nie wysyłamy historii na serwer.
+Przed budowaniem EXE workflow instaluje biblioteki i uruchamia `python -m unittest discover -s tests -v`. GUI nie działa na maszynie testowej bez ekranu, więc należy także sprawdzić gotowy EXE na Windows. Pliki `yt-dlp`/`FFmpeg` wymagają aktualizacji przy zmianach YouTube. Żadna metoda nie zapewnia pobierania plików z DRM.

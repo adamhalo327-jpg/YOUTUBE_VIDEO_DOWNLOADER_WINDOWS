@@ -1,4 +1,4 @@
-"""Independent, testable core of YOUTUBE VIDEO DOWNLOADER 2.0.
+"""Independent, testable core of YOUTUBE VIDEO DOWNLOADER 3.0.
 
 Downloads should only be used for videos you own or are authorized to save.
 The CLI engine is distributed as a separate executable.
@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 APP_TITLE = "YOUTUBE VIDEO DOWNLOADER"
-APP_VERSION = "2.0 — ULTRA DOWNLOADER"
+APP_VERSION = "3.0 — PRO EDITION"
 VALID_HOSTS = frozenset({
     "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com",
     "youtu.be", "www.youtu.be", "youtube-nocookie.com", "www.youtube-nocookie.com",
@@ -28,8 +28,10 @@ QUALITY_OPTIONS = (
     "Najlepsza dostępna", "2160p (4K)", "1440p (2K)",
     "1080p (Full HD)", "720p (HD)", "480p", "360p",
 )
-KINDS = ("MP4 (wideo)", "MP3 (audio)")
-SPEED_PROFILES = {"Standard": 4, "Szybki": 8, "Turbo": 12}
+KINDS = ("MP4 (wideo)", "MP3 (audio)", "MKV (wideo)", "WEBM (wideo)", "WAV (audio)")
+SPEED_PROFILES = {"Standard": 4, "Szybki": 8, "Turbo": 12, "Turbo Pro 16": 16, "Turbo Pro 24": 24}
+PREMIUM_SPEEDS = frozenset({"Turbo Pro 16", "Turbo Pro 24"})
+PREMIUM_KINDS = frozenset({"MKV (wideo)", "WEBM (wideo)", "WAV (audio)"})
 MAX_HISTORY = 3000
 API_URL = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
 USER_AGENT = "YouTubeVideoDownloader/2.0 (+https://github.com/yt-dlp/yt-dlp)"
@@ -143,6 +145,36 @@ def subtitle_langs(languages: str) -> str:
     return ",".join(tokens)
 
 
+def seconds_from_clock(raw: str) -> int | None:
+    """Accept empty, HH:MM:SS, MM:SS and plain seconds."""
+    raw = raw.strip()
+    if not raw:
+        return None
+    if raw.isdecimal():
+        return int(raw)
+    pieces = raw.split(":")
+    if len(pieces) not in (2, 3) or not all(x.isdecimal() for x in pieces):
+        raise ValueError("Czas podaj jako MM:SS lub HH:MM:SS, np. 01:30.")
+    if any(int(x) > 59 for x in pieces[1:]):
+        raise ValueError("Minuty i sekundy muszą być mniejsze niż 60.")
+    secs = 0
+    for x in pieces:
+        secs = secs * 60 + int(x)
+    return secs
+
+
+def normalize_trim_range(start: str, end: str) -> str:
+    a, b = seconds_from_clock(start), seconds_from_clock(end)
+    if a is None and b is None:
+        raise ValueError("Wpisz początek lub koniec wycinka.")
+    if b is not None and b <= (a or 0):
+        raise ValueError("Koniec wycinka musi być późniejszy niż początek.")
+    def stamp(seconds):
+        return str(seconds) if seconds is not None else "inf"
+    return f"*{stamp(a or 0)}-{stamp(b)}"
+
+
+
 def make_download_command(
     url: str,
     dest: Path,
@@ -153,6 +185,8 @@ def make_download_command(
     subtitles: bool = False,
     languages: str = "pl,en",
     fragments: int = 8,
+    trim_start: str = "",
+    trim_end: str = "",
     _tool=None,
     _base_command=None,
 ) -> list[str]:
@@ -163,11 +197,11 @@ def make_download_command(
         raise ValueError("Pobieranie playlisty wymaga linku z parametrem list=.")
     if kind not in KINDS or quality not in QUALITY_OPTIONS:
         raise ValueError("Nieobsługiwany format lub jakość.")
-    if not isinstance(fragments, int) or fragments < 1 or fragments > 16:
-        raise ValueError("Liczba równoległych fragmentów musi być w zakresie 1–16.")
+    if not isinstance(fragments, int) or fragments < 1 or fragments > 24:
+        raise ValueError("Liczba równoległych fragmentów musi być w zakresie 1–24.")
     get_tool = _tool or tool
     ffmpeg = get_tool("ffmpeg.exe") or get_tool("ffmpeg")
-    if kind == "MP3 (audio)" and not ffmpeg:
+    if kind != "MP4 (wideo)" and not ffmpeg:
         raise FileNotFoundError("MP3 wymaga ffmpeg.exe — pobierz pełną paczkę EXE.")
     if subtitles and not ffmpeg:
         raise FileNotFoundError("Konwersja napisów do SRT wymaga ffmpeg.exe.")
@@ -180,11 +214,20 @@ def make_download_command(
         "--print", "after_move:FILE:%(filepath)s",
         "--paths", str(dest),
         "-o", "%(title).180B [%(id)s].%(ext)s",
-        "--no-overwrites", "--continue", "--retries", "10", "--fragment-retries", "10",
+        "--no-overwrites", "--continue", "--part", "--retries", "10", "--fragment-retries", "10",
         "--concurrent-fragments", str(fragments),
     ]
-    if kind == "MP3 (audio)":
-        cmd += ["-f", "bestaudio/best", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"]
+    if trim_start or trim_end:
+        if not ffmpeg:
+            raise FileNotFoundError("Przycinanie wymaga ffmpeg.exe.")
+        cmd += ["--download-sections", normalize_trim_range(trim_start, trim_end), "--force-keyframes-at-cuts"]
+    if fragments >= 16:
+        cmd += ["--buffer-size", "64K", "--retry-sleep", "fragment:exp=1:15"]
+    if kind in {"MP3 (audio)", "WAV (audio)"}:
+        codec = "mp3" if kind == "MP3 (audio)" else "wav"
+        cmd += ["-f", "bestaudio/best", "--extract-audio", "--audio-format", codec]
+        if codec == "mp3":
+            cmd += ["--audio-quality", "0"]
     else:
         if quality == "Najlepsza dostępna":
             fmt = "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
@@ -192,7 +235,17 @@ def make_download_command(
             height = int(re.search(r"\d+", quality).group())
             fmt = (f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/"
                    f"bv*[height<={height}]+ba/b[height<={height}]")
-        cmd += ["-f", fmt, "--merge-output-format", "mp4"]
+        if kind == "MP4 (wideo)":
+            cmd += ["-f", fmt, "--merge-output-format", "mp4"]
+            if ffmpeg:
+                cmd += ["--recode-video", "mp4"]
+        elif kind in {"MKV (wideo)", "WEBM (wideo)"}:
+            if quality == "Najlepsza dostępna":
+                alt_fmt = "bv*+ba/b"
+            else:
+                alt_fmt = f"bv*[height<={height}]+ba/b[height<={height}]"
+            container = "mkv" if kind == "MKV (wideo)" else "webm"
+            cmd += ["-f", alt_fmt, "--merge-output-format", container, "--recode-video", container]
     if subtitles:
         cmd += ["--write-subs", "--write-auto-subs", "--sub-langs", subtitle_langs(languages), "--convert-subs", "srt"]
     cmd += ["--", url.strip()]

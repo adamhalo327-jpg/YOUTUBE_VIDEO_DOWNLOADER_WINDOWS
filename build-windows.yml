@@ -1,4 +1,4 @@
-name: Build YouTube Downloader 2.0 EXE
+name: Build YouTube Downloader 3.0 PRO EXE
 
 on:
   workflow_dispatch:
@@ -68,18 +68,22 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all customtkinter --name YOUTUBE_VIDEO_DOWNLOADER_2_0 app.py
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all customtkinter --collect-all cryptography --hidden-import gui --hidden-import winotify --name YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO app.py
           if ($LASTEXITCODE -ne 0) { throw 'Budowa EXE nie powiodla sie' }
-          $output = 'dist/YOUTUBE_VIDEO_DOWNLOADER_2_0'
-          if (-not (Test-Path "$output/YOUTUBE_VIDEO_DOWNLOADER_2_0.exe")) { throw 'Brak programu EXE' }
+          $output = 'dist/YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO'
+          if (-not (Test-Path "$output/YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO.exe")) { throw 'Brak programu EXE' }
           Copy-Item 'vendor/*.exe' $output
-          Copy-Item 'README_PL.md' "$output/INSTRUKCJA.txt"
+          Copy-Item 'README_PL.md' "$output/INSTRUKCJA_PL.md"
+          # Ensure GUI, licensing module and FFmpeg tools have been packaged.
+          if (-not (Test-Path "$output/yt-dlp.exe")) { throw 'Nie ma silnika yt-dlp.exe' }
+          if (-not (Test-Path "$output/ffmpeg.exe")) { throw 'Nie ma FFmpeg' }
+          if (-not (Test-Path "$output/ffprobe.exe")) { throw 'Nie ma FFprobe' }
           Get-ChildItem $output | Select-Object Name, Length
 
       - name: Publikuj artefakt EXE
         uses: actions/upload-artifact@v6
         with:
-          name: YOUTUBE_VIDEO_DOWNLOADER_2_0_WINDOWS
-          path: dist/YOUTUBE_VIDEO_DOWNLOADER_2_0/
+          name: YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO_WINDOWS
+          path: dist/YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO/
           if-no-files-found: error
           retention-days: 30

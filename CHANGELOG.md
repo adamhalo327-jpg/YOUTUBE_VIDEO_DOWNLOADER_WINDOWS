@@ -1,13 +1,12 @@
-# Zmiany 2.0 — ULTRA DOWNLOADER
+# Changelog
 
-- Nowe: pełne playlisty YouTube, możliwość ręcznego wyboru „tylko film”.
-- Nowe: podgląd miniatury, tytułu i długości filmu.
-- Nowe: jednoczesna kolejka kilku pobrań (maksymalnie 3 zadania).
-- Nowe: automatyczny wybór najwyższej dostępnej jakości.
-- Nowe: lokalna historia pobierania (w tym pozycji playlist).
-- Nowe: nowoczesny ciemny interfejs CustomTkinter.
-- Nowe: sprawdzana sumą SHA256 automatyczna aktualizacja yt-dlp.
-- Nowe: dostępne napisy i napisy automatyczne, konwersja do SRT.
-- Nowe: do 12 równoległych fragmentów dla długich filmów, jeśli dostępne.
-- Zachowano: MP4, MP3, folder zapisu, wybór 360p–4K, pasek postępu, anulowanie.
-- GitHub Actions: nowoczesne akcje na Node.js 24, PyInstaller onedir, testy.
+## 3.0 — PRO EDITION
+
+- Turbo Pro: 16/24 fragmenty, do 5 równoległych pobrań po aktywacji licencji.
+- Kolejka z ↑/↓, wstrzymaniem, wznowieniem, ponowieniem błędów i lokalną trwałością po restarcie.
+- Przycinanie FFmpeg według czasu początkowego i końcowego.
+- Konwersja MP4 / MKV / WEBM / MP3 / WAV.
+- Historia z wyszukiwarką; trzy motywy; powiadomienia Windows.
+- Podpisywane licencje offline Ed25519, klucz prywatny **nie** jest częścią projektu.
+- Zachowane funkcje, lokalna historia i ustawienia v2.0; helpery v1.0 nadal działają.
+- Nowe testy przestarzałego v1.0, istniejącego v2.0 i dodatkowych opcji v3.0.
