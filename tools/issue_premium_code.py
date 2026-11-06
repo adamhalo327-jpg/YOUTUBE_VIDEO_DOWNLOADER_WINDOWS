@@ -8,6 +8,8 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+PRESET_DAYS = (1, 7, 30, 90, 365)
+
 PUBLIC = 'EUj46Vi49pIWqVd6dkg4D9z3KG7eKi/+18bdrQCm0HA='
 
 def load_key(path):
