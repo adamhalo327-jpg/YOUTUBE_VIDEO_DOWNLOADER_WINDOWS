@@ -70,7 +70,8 @@ class InfinityFeatureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             with self.assertRaises(ValueError):concat_mp4([Path(td)/'a.mp4'],Path(td)/'out.mp4')
     def test_update_version(self):
-        self.assertTrue(newer('v12.1.0'))
+        self.assertTrue(newer('v12.2.0'))
+        self.assertFalse(newer('v12.1.0'))
         self.assertFalse(newer('v10.0.0'))
     def test_cloud_secret_not_in_source(self):
         root=Path(__file__).resolve().parents[1]
@@ -91,7 +92,7 @@ class ReleaseUpdateSafetyTests(unittest.TestCase):
         from update_management import official_assets
         import io
         def opener(req,timeout):
-            data={'tag_name':'v12.1.0','assets':[{'name':'YOUTUBE_VIDEO_DOWNLOADER_5_1_SETUP.exe','browser_download_url':'https://evil.invalid/trap','size':1000},{'name':'YVD_SETUP_SHA256.txt','browser_download_url':'https://github.com/adamhalo327-jpg/YOUTUBE_VIDEO_DOWNLOADER_WINDOWS/releases/download/v5.1/YVD_SETUP_SHA256.txt'}]}
+            data={'tag_name':'v12.2.0','assets':[{'name':'YOUTUBE_VIDEO_DOWNLOADER_5_1_SETUP.exe','browser_download_url':'https://evil.invalid/trap','size':1000},{'name':'YVD_SETUP_SHA256.txt','browser_download_url':'https://github.com/adamhalo327-jpg/YOUTUBE_VIDEO_DOWNLOADER_WINDOWS/releases/download/v5.1/YVD_SETUP_SHA256.txt'}]}
             return io.BytesIO(json.dumps(data).encode())
         with self.assertRaisesRegex(ValueError,'Niezweryfikowany'):
             official_assets(opener)

@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 APP_TITLE = "YOUTUBE VIDEO DOWNLOADER"
-APP_VERSION = "12.0 — UNIVERSAL DOWNLOADER"
+APP_VERSION = "12.1 — TOKEN SHOP"
 VALID_HOSTS = frozenset({
     "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com",
     "youtu.be", "www.youtu.be", "youtube-nocookie.com", "www.youtube-nocookie.com",

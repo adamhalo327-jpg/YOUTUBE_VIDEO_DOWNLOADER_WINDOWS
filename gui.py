@@ -37,6 +37,7 @@ from cloud_license import CloudLicense
 from update_management import download_verified_setup
 from data_center import diagnostics, export_backup, import_backup
 from universal_downloader import UniversalSelection, PLATFORMS, CONTAINERS, QUALITIES, platform_for, build_command, preview_command, validate
+from token_shop import CloudTokenShop, PACKAGES
 from premium_access import DownloadSelection, require_access, paid_reason, free_quality, FREE_MAX_PARALLEL, PREMIUM_MAX_PARALLEL, PREMIUM_FEATURES
 
 # Public compatibility with 1.0 tests / 2.0 integrations.
@@ -129,6 +130,7 @@ class UltraDownloader(ctk.CTk):
         self.history = History()
         self.license = LicenseManager()
         self.cloud = CloudLicense()
+        self.tokens = CloudTokenShop(self.home / "token-wallet-cloud-v12-1.json", self.cloud)
         self.live_mib = 0.0
         self.live_samples = []
         self.cloud_expires_at = None
@@ -192,6 +194,8 @@ class UltraDownloader(ctk.CTk):
         self._refresh_dashboard()
         self.after(5500, self._check_app_update_auto)
         self.after(1500, self._verify_cloud_async)
+        self.after(2800, self._refresh_wallet_async)
+        self.after(60_000, self._wallet_heartbeat)
         self.after(2500, self._live_tick)
         self.after(100, self._drain_events)
         self.after(400, self._scheduler)
@@ -236,7 +240,7 @@ class UltraDownloader(ctk.CTk):
         head = ctk.CTkFrame(self, fg_color=self.bg)
         head.pack(fill="x", padx=20, pady=(15, 5))
         self._text(head, "▶  YOUTUBE VIDEO DOWNLOADER", 22, bold=True).pack(side="left")
-        self._text(head, "UNIVERSAL DOWNLOADER 12.0", 13, self.accent, bold=True).pack(side="right", padx=8)
+        self._text(head, "TOKEN SHOP 12.1", 13, self.accent, bold=True).pack(side="right", padx=8)
         self.premium_header = self._text(head, "", 11, self.accent, bold=True)
         self.premium_header.pack(side="right", padx=12)
         self._text(self, "Universal Downloader  •  Playlisty  •  MP4 / MP3  •  Napisy  •  Turbo Pro  •  Premium", 12, self.muted).pack(anchor="w", padx=25)
@@ -244,7 +248,7 @@ class UltraDownloader(ctk.CTk):
                                   segmented_button_selected_color=self.hover,
                                   segmented_button_unselected_color=self.panel2)
         self.tabs.pack(fill="both", expand=True, padx=16, pady=(7, 7))
-        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0", "Universal 12.0"):
+        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0", "Universal 12.0", "Sklep tokenow"):
             self.tabs.add(tab)
         self._download_tab(self.tabs.tab("Pobieranie"))
         self._playlist_tab(self.tabs.tab("Playlisty"))
@@ -256,6 +260,7 @@ class UltraDownloader(ctk.CTk):
         self._cloud_tab(self.tabs.tab("Cloud"))
         self._data_center_tab(self.tabs.tab("Centrum 10.0"))
         self._universal_tab(self.tabs.tab("Universal 12.0"))
+        self._token_shop_tab(self.tabs.tab("Sklep tokenow"))
         self.after(200, self._universal_poll)
         foot = ctk.CTkFrame(self, fg_color=self.bg)
         foot.pack(fill="x", padx=25, pady=(0, 10))
@@ -408,14 +413,21 @@ class UltraDownloader(ctk.CTk):
         self.universal_log.insert("end", "\nSTART: " + platform_for(selection.url) + " • " + selection.container + "\n")
         def work():
             flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            ticket = None
+            try:
+                ticket = self.tokens.start(selection.url)
+            except (OSError, ValueError) as exc:
+                self.universal_events.put(("line", "Nagrody offline: " + str(exc)[:90]))
             try:
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                     encoding="utf-8", errors="replace", bufsize=1, creationflags=flags)
                 self.universal_process = proc
+                saw_download = False
                 for line in proc.stdout:
                     self.universal_events.put(("line", line.strip()[:500]))
+                    if "[download]" in line and ("100%" in line or "Destination:" in line): saw_download = True
                 rc = proc.wait()
-                self.universal_events.put(("done", "Pobrano pomyślnie." if rc == 0 else "Zadanie przerwano lub wystąpił błąd (" + str(rc) + ")."))
+                self.universal_events.put(("done", "Pobrano pomyślnie." if rc == 0 else "Zadanie przerwano lub wystąpił błąd (" + str(rc) + ").", ticket if rc == 0 and saw_download else None))
             except Exception as exc: self.universal_events.put(("done", "Błąd: " + str(exc)[:250]))
             finally: self.universal_process = None
         threading.Thread(target=work, daemon=True).start()
@@ -431,7 +443,9 @@ class UltraDownloader(ctk.CTk):
         if self.closing: return
         try:
             for _ in range(60):
-                event, payload = self.universal_events.get_nowait()
+                item = self.universal_events.get_nowait()
+                event, payload = item[:2]
+                if event == "done" and len(item)>2 and item[2]: self._award_tokens(item[2])
                 if event in ("done", "error", "preview"):
                     self.universal_busy = False
                     self.universal_status.configure(text=payload)
@@ -444,7 +458,7 @@ class UltraDownloader(ctk.CTk):
         self.after(200, self._universal_poll)
 
     def _has_premium(self):
-        return self.license.premium() or self.cloud.premium()
+        return self.license.premium() or self.cloud.premium() or self.tokens.premium()
 
     def _playlist_tab(self, root):
         panel=ctk.CTkFrame(root,fg_color=self.panel,corner_radius=12)
@@ -745,6 +759,67 @@ class UltraDownloader(ctk.CTk):
                          "Pobieraj wyłącznie własne lub dozwolone materiały. Bez obchodzenia DRM.",
                    12, self.muted, wraplength=820, justify="left").pack(anchor="w", padx=20, pady=(20, 25))
 
+    def _token_shop_tab(self, root):
+        panel=ctk.CTkScrollableFrame(root,fg_color=self.panel)
+        panel.pack(fill="both",expand=True,padx=8,pady=8)
+        self._text(panel,"🪙 SKLEP TOKENÓW — 12.1",22,self.accent,bold=True).pack(anchor="w",padx=18,pady=(15,8))
+        self.token_balance_label=self._text(panel,"",19,self.accent,bold=True)
+        self.token_balance_label.pack(anchor="w",padx=18,pady=8)
+        self.token_expiry_label=self._text(panel,"",12,self.muted)
+        self.token_expiry_label.pack(anchor="w",padx=18,pady=5)
+        self._text(panel,"Za ukończone pobranie nowego pliku: 10 tokenów. Maksymalnie 100 dziennie.\nTen sam adres nagradzany jest raz dziennie; błędy, anulowane zadania i pliki już istniejące nie dają tokenów.",12,self.muted,wraplength=800,justify="left").pack(anchor="w",padx=18,pady=12)
+        for name,spec in PACKAGES.items():
+            line=ctk.CTkFrame(panel,fg_color=self.panel2,corner_radius=10)
+            line.pack(fill="x",padx=18,pady=6)
+            self._text(line,f"{name}  •  {spec['days']} dni dostępu Premium  •  {spec['tokens']} tokenów",13,bold=True).pack(side="left",padx=15,pady=17)
+            self._button(line,"KUP ZA TOKENY",lambda key=name:self._buy_tokens(key),width=160).pack(side="right",padx=12)
+        self._text(panel,"Saldo i zakupy przechowywane są w Cloudflare D1. Wymagane jest połączenie HTTPS z Premium Cloud 5.1 + Token Shop 12.1.\nPrzyznanie tokenów zależy od zgłoszenia aplikacji i nie jest kryptograficznym dowodem pobrania; system zawiera limity nadużyć.",11,self.muted,wraplength=840,justify="left").pack(anchor="w",padx=18,pady=20)
+        self._button(panel,"ODŚWIEŻ PORTFEL Z CHMURY",self._refresh_wallet_async,width=270).pack(anchor="w",padx=18,pady=5)
+        self._refresh_token_shop()
+
+    def _refresh_token_shop(self):
+        if not hasattr(self,"token_balance_label"): return
+        self.token_balance_label.configure(text=f"🪙 Twoje tokeny: {self.tokens.balance}")
+        until=self.tokens.premium_until()
+        active=self.tokens.premium()
+        self.token_expiry_label.configure(text=("Pakiet tokenowy aktywny do: " + until.astimezone().strftime("%d.%m.%Y %H:%M")) if active else "Brak aktywnego pakietu tokenowego")
+
+    def _refresh_wallet_async(self):
+        def run():
+            try:
+                self.tokens.refresh()
+                self.events.put(("wallet_status", "Saldo tokenów zsynchronizowane", False))
+            except Exception as exc:
+                self.events.put(("wallet_status", "Portfel: " + str(exc)[:140], True))
+        self.pool.submit(run)
+
+    def _wallet_heartbeat(self):
+        if self.closing:return
+        self._refresh_wallet_async()
+        self.after(60_000, self._wallet_heartbeat)
+
+    def _award_tokens(self,ticket):
+        def run():
+            try:
+                result=self.tokens.complete(ticket)
+                message="🪙 +10 tokenów" if result.get('awarded')==10 else result.get('reason','Nie przyznano tokenów')
+                self.events.put(("wallet_status",message,False))
+            except Exception as exc:
+                self.events.put(("wallet_status","Nie udało się potwierdzić tokenów: "+str(exc)[:110],True))
+        self.pool.submit(run)
+
+    def _buy_tokens(self,name):
+        spec=PACKAGES[name]
+        if not messagebox.askyesno("Sklep tokenów",f"Kupić {name}: {spec['days']} dni za {spec['tokens']} tokenów?\nZakup zostanie zapisany na Cloudflare?"):
+            return
+        def run():
+            try:
+                expiry=self.tokens.buy(name)
+                self.events.put(("wallet_purchase", "Pakiet aktywny do "+expiry.astimezone().strftime("%d.%m.%Y %H:%M"),False))
+            except Exception as exc:
+                self.events.put(("wallet_purchase",str(exc)[:200],True))
+        self.pool.submit(run)
+
     def _premium_tab(self, root):
         frame = ctk.CTkFrame(root, fg_color=self.panel, corner_radius=13)
         frame.pack(fill="x", padx=8, pady=8)
@@ -801,10 +876,10 @@ class UltraDownloader(ctk.CTk):
             self.premium_expiry.configure(text="Kod wygasł: " + expires.astimezone().strftime("%d.%m.%Y • %H:%M:%S (czas lokalny)") if expires else "")
             self.premium_header.configure(text="⌛ PREMIUM WYGASŁO", text_color=self.error)
         else:
-            self.premium_info.configure(text="🔒 WERSJA DARMOWA — wpisz kod, aby aktywować Premium.", text_color=self.muted)
-            self.premium_clock.configure(text="Pozostały czas: —", text_color=self.muted)
+            self.premium_info.configure(text="🪙 PREMIUM Z PAKIETU TOKENÓW" if self.tokens.premium() else "🔒 WERSJA DARMOWA — wpisz kod, aby aktywować Premium.", text_color=self.accent if self.tokens.premium() else self.muted)
+            self.premium_clock.configure(text=("Ważne do: " + self.tokens.premium_until().astimezone().strftime("%d.%m.%Y %H:%M")) if self.tokens.premium() else "Pozostały czas: —", text_color=self.muted)
             self.premium_expiry.configure(text="" if state == "free" else "Nieprawidłowy zapis licencji. Aktywuj poprawny kod.")
-            self.premium_header.configure(text="FREE", text_color=self.muted)
+            self.premium_header.configure(text="🪙 TOKEN PREMIUM" if self.tokens.premium() else "FREE", text_color=self.accent if self.tokens.premium() else self.muted)
         if not self._has_premium() and self.theme_var.get() != "Ciemny":
             self.theme_var.set("Ciemny")
             self.after(10, lambda: self._change_theme("Ciemny"))
@@ -1203,6 +1278,9 @@ class UltraDownloader(ctk.CTk):
         self.after(400, self._scheduler)
 
     def _worker(self, task):
+        ticket = None
+        try:ticket = self.tokens.start(task.url)
+        except (OSError, ValueError):pass
         logs = []
         had_file = False
         current_title = task.title
@@ -1264,7 +1342,7 @@ class UltraDownloader(ctk.CTk):
             else:
                 state, message = "Błąd", str(exc)[:350]
         finally:
-            self.events.put(("final", task.id, state, message))
+            self.events.put(("final", task.id, state, message, had_file, ticket))
 
     def _update_engine(self, *, force=True):
         if self.engine_update_in_progress:
@@ -1324,7 +1402,7 @@ class UltraDownloader(ctk.CTk):
                         if not quiet and messagebox.askyesno("Aktualizacja aplikacji", "Dostępne jest nowe wydanie. Otworzyć oficjalną stronę pobierania?\nInstalacja wymaga Twojego potwierdzenia."):
                             self._open_release_page()
                     else:
-                        self.app_update_status.configure(text="Masz aktualną wersję 12.0 lub brak nowszego wydania.", text_color=self.muted)
+                        self.app_update_status.configure(text="Masz aktualną wersję 12.1 lub brak nowszego wydania.", text_color=self.muted)
                         if not quiet:
                             messagebox.showinfo("Aktualizacja aplikacji", "Brak nowszego wydania GitHub Releases.")
                 elif kind == "app_update_error":
@@ -1342,6 +1420,13 @@ class UltraDownloader(ctk.CTk):
                     self.playlist_output.delete("1.0","end");self.playlist_output.insert("1.0",ev[1])
                 elif kind == "studio_done":
                     self.studio_info.configure(text=ev[1][:220])
+                elif kind == "wallet_status":
+                    self._refresh_token_shop()
+                    self._status(ev[1])
+                elif kind == "wallet_purchase":
+                    self._refresh_token_shop()
+                    self._refresh_premium_ui()
+                    (messagebox.showerror if ev[2] else messagebox.showinfo)("Sklep tokenów",ev[1])
                 elif kind == "cloud_result":
                     details=ev[1]
                     if details.get("active"):
@@ -1386,6 +1471,8 @@ class UltraDownloader(ctk.CTk):
                         self._update_row(task)
                         if ev[3]:
                             self.task_views[key]["status"].configure(text=(task.status + "  •  " + ev[3])[-410:])
+                        if task.status == "Zakończono" and len(ev) > 4 and ev[4]:
+                            self._award_tokens(ev[5]) if len(ev)>5 and ev[5] else None
                         if task.status == "Zakończono":
                             self._notify_windows("Zakończono pobieranie", task.title)
                         self._save_queue()

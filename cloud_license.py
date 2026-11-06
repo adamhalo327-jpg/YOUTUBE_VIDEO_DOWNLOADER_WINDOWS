@@ -22,7 +22,7 @@ def normalize_server(raw):
 
 def request_json(server,path,data=None,token=None,opener=urlopen):
     base=normalize_server(server)
-    if path not in ('/health','/activate','/validate','/admin/issue','/admin/list','/admin/revoke','/admin/extend','/admin/stats'):
+    if path not in ('/health','/activate','/validate','/admin/issue','/admin/list','/admin/revoke','/admin/extend','/admin/stats','/wallet/register','/wallet/status','/wallet/start','/wallet/complete','/wallet/buy'):
         raise ValueError('Nieznana operacja API')
     payload=json.dumps(data or {}).encode('utf-8') if data is not None else None
     headers={'User-Agent':'YVD-5.0','Accept':'application/json'}

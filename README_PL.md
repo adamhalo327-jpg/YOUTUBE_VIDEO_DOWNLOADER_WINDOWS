@@ -16,3 +16,7 @@ Zachowano zakładki i funkcje wersji 10.1, aktywację Premium Cloud 5.1, narzęd
 4. Zainstaluj i przetestuj działanie na Windows przed publikacją GitHub Release.
 
 Serwisy mogą zmieniać API, nie każdy materiał jest dostępny; część funkcji wymaga ffmpeg i aktualnego yt-dlp. Wspieramy pobieranie wyłącznie treści własnych lub dozwolonych, bez obchodzenia DRM. Do nowych serwisów nie udostępniamy importu cookies, aby chronić dane logowania.
+
+
+## Bezpieczny sklep tokenów 12.1
+Najpierw wdróż migrację D1 i nowego Workera zgodnie z `INSTRUKCJA_BEZPIECZNE_TOKENY.md`. Dotychczasowe kody Premium Cloud pozostają zgodne. Lokalny portfel tokenów nie przyznaje uprawnień.

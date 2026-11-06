@@ -1,7 +1,7 @@
-; YOUTUBE VIDEO DOWNLOADER 12.0 PREMIUM ACCESS
+; YOUTUBE VIDEO DOWNLOADER 12.1 PREMIUM ACCESS
 ; Per-user installation, no admin rights; includes all PyInstaller bundled files.
 #define AppName "YOUTUBE VIDEO DOWNLOADER"
-#define AppVersion "12.0"
+#define AppVersion "12.1"
 #define AppExe "YOUTUBE_VIDEO_DOWNLOADER.exe"
 
 [Setup]
@@ -19,7 +19,7 @@ WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
 OutputDir=..\release
-OutputBaseFilename=YOUTUBE_VIDEO_DOWNLOADER_12_0_SETUP
+OutputBaseFilename=YOUTUBE_VIDEO_DOWNLOADER_12_1_SETUP
 SetupIconFile=..\assets\YVD_ICON.ico
 UninstallDisplayIcon={app}\{#AppExe}
 CloseApplications=yes
