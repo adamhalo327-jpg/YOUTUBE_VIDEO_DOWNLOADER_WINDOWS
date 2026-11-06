@@ -1,0 +1,16 @@
+ADMIN CENTER TOKENY 12.1 — BUDOWA PRZEZ STRONĘ GITHUB
+
+1. Wejdź do https://github.com/adamhalo327-jpg/YOUTUBE_VIDEO_DOWNLOADER_WINDOWS
+2. W gałęzi main wybierz Add file -> Upload files i prześlij z paczki trzy pliki: admin_center.py, cloud_license.py i core.py do głównego katalogu (podmień stare).
+3. Zatwierdź Commit changes.
+4. W repozytorium wybierz Add file -> Create new file. Wpisz ścieżkę .github/workflows/build-admin-tokeny-12-1.yml
+5. Otwórz w Notatniku plik o tej samej nazwie z tej paczki i wklej jego pełną treść do edytora GitHub. Zatwierdź Commit changes.
+6. Actions -> Build ADMIN CENTER 12.1 TOKENY - Windows EXE -> Run workflow -> Run workflow.
+7. Po Success wejdź w zakończony run, sekcja Artifacts -> YVD_ADMIN_CENTER_12_1_TOKENY_WINDOWS. Pobierz i rozpakuj ZIP, uruchom EXE.
+8. W Admin Center podaj HTTPS do dotychczasowego Workera Premium Cloud i ADMIN_TOKEN (nie publikuj tego sekretu w GitHub ani w rozmowie).
+9. W aplikacji Windows 12.1 skopiuj PUBLICZNY ID portfela (nie wallet_token).
+10. W Admin Center wklej ID portfela i kliknij Sprawdź portfel. Podaj 10 testowych tokenów i powód "Test Admin Center". Kliknij DODAJ TOKENY i potwierdź.
+11. Odśwież saldo w aplikacji — powinno wzrosnąć o 10. W D1 sprawdź SELECT wallet_id,amount,reason,created_at FROM token_admin_grants ORDER BY created_at DESC LIMIT 10;
+
+UWAGA: /health potwierdza tylko działanie Workera; nie dowodzi jeszcze, że endpoint przyznawania tokenów działa. Najpierw wykonaj test małą kwotą.
+NIE dodawaj ADMIN_TOKEN do kodu aplikacji ani repozytorium. Użyj plików z tej paczki, a nie starego Admin Center z Releases 12.1.
