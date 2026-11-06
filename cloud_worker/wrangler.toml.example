@@ -1,0 +1,9 @@
+
+name = "yvd-premium-cloud"
+main = "src/worker.js"
+compatibility_date = "2026-11-06"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "yvd-premium-db"
+database_id = "UZUPELNIJ_ID_BAZY"
