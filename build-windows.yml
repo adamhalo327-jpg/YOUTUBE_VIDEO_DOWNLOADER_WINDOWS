@@ -1,4 +1,4 @@
-name: Build YouTube Downloader 3.0 PRO EXE
+name: Build YouTube Downloader 3.1 PREMIUM TIMER EXE
 
 on:
   workflow_dispatch:
@@ -68,10 +68,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all customtkinter --collect-all cryptography --hidden-import gui --hidden-import winotify --name YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO app.py
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all customtkinter --collect-all cryptography --hidden-import gui --hidden-import winotify --name YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM app.py
           if ($LASTEXITCODE -ne 0) { throw 'Budowa EXE nie powiodla sie' }
-          $output = 'dist/YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO'
-          if (-not (Test-Path "$output/YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO.exe")) { throw 'Brak programu EXE' }
+          $output = 'dist/YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM'
+          if (-not (Test-Path "$output/YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM.exe")) { throw 'Brak programu EXE' }
           Copy-Item 'vendor/*.exe' $output
           Copy-Item 'README_PL.md' "$output/INSTRUKCJA_PL.md"
           # Ensure GUI, licensing module and FFmpeg tools have been packaged.
@@ -83,7 +83,24 @@ jobs:
       - name: Publikuj artefakt EXE
         uses: actions/upload-artifact@v6
         with:
-          name: YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO_WINDOWS
-          path: dist/YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO/
+          name: YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM_WINDOWS
+          path: dist/YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Zbuduj oddzielny panel wlasciciela do generowania kodow
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # No owner PEM key is EVER checked into GitHub or bundled in the EXE.
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --paths tools --collect-all cryptography --name YVD_PREMIUM_OWNER tools/premium_generator_gui.py
+          if ($LASTEXITCODE -ne 0) { throw 'Budowa panelu wlasciciela nie powiodla sie' }
+          if (-not (Test-Path 'dist/YVD_PREMIUM_OWNER.exe')) { throw 'Brak panelu wlasciciela EXE' }
+
+      - name: Publikuj panel wlasciciela EXE (bez prywatnego klucza)
+        uses: actions/upload-artifact@v6
+        with:
+          name: YVD_3_1_PREMIUM_OWNER_WINDOWS
+          path: dist/YVD_PREMIUM_OWNER.exe
           if-no-files-found: error
           retention-days: 30

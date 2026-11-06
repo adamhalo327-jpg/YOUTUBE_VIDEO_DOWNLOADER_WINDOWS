@@ -1,55 +1,78 @@
-# YOUTUBE VIDEO DOWNLOADER 3.0 — PRO EDITION
+# YOUTUBE VIDEO DOWNLOADER 3.1 — PRO EDITION + PREMIUM TIMER
 
-**Windows 10/11, GitHub Actions EXE.** Pobieraj wyłącznie materiały, do których masz prawa lub zgodę. Narzędzie nie omija DRM. Dostępność jakości, napisów i prędkość zależą od serwisu i materiału; warunki korzystania z YouTube mogą ograniczać pobieranie.
+**Windows 10/11, kompilacja EXE przez GitHub Actions bez Android Studio ani lokalnego Pythona.** Kontynuacja 3.0 PRO, 2.0 ULTRA i 1.0. Pobieraj jedynie materiały, do których masz prawa lub zgodę. Aplikacja nie obchodzi DRM; warunki YouTube mogą ograniczać pobieranie.
 
-## Funkcje
+## Nowość: okresy Premium i licznik ważności
 
-Wszystko z wersji 2.0: linki do filmów, Shorts i playlist, podgląd miniatury i tytułu, MP4 / MP3, najlepsza jakość, napisy pl,en, historia, aktualizacje silnika yt-dlp zweryfikowane SHA256, praca 1–3 filmów równocześnie, Turbo do 12 fragmentów.
+**W panelu właściciela (`YVD_PREMIUM_OWNER.exe`)** możesz wygenerować indywidualne kody:
 
-Nowości 3.0: ręczne przesuwanie pozycji ↑ ↓, ponowienie nieudanych zadań, pauza i wznowienie częściowych pobrań, zapisywana po restarcie kolejka, przeszukiwanie historii, motywy ciemny/jasny/neonowy, konwersja MKV/WEBM/WAV, przycinanie od/do, powiadomienia Windows oraz TURBO PRO 16/24 fragmenty i do 5 jednoczesnych filmów.
+- 1 dzień (24 godziny), 7, 30, 90, 365 dni,
+- **bezterminowo / na zawsze**,
+- **własna długość** — podajesz dodatnią liczbę dni, godzin i minut, np. 15 dni 3 godziny 45 minut lub 50 minut.
 
-**Premium z kodem:** darmowa wersja zachowuje funkcje 2.0 plus kolejkę, pauzę, wyszukiwarkę i motywy. Kod Premium odblokowuje Turbo Pro, 4–5 pobrań naraz, przycinanie, nowe formaty MKV/WEBM/WAV oraz powiadomienia Windows.
+Po wygenerowaniu kodu jego ważność jest liczona **od chwili wygenerowania**, a nie od pierwszego użycia. Dlatego nie generuj kodów z dużym wyprzedzeniem, jeśli odbiorca ma dostać pełny okres. Nowe kody mają dokładną godzinę wygaśnięcia w UTC; program przelicza ją na lokalny czas użytkownika.
+
+**W normalnej aplikacji** obok informacji o stanie Premium widoczny jest na żywo licznik:
+
+> ⏳ POZOSTAŁO: 29 dni  23 godz.  59 min  59 sek.
+
+W zakładce Premium znajdziesz nazwę odbiorcy, dokładny czas pozostały do wygaśnięcia, datę i godzinę zakończenia. Skrócony status Premium pojawia się też w górnej części okna. Licznik aktualizuje się co sekundę. Kod na zawsze pokazuje **BEZTERMINOWO — na zawsze**. Po wygaśnięciu pojawia się **PREMIUM WYGASŁO**, program przełącza się na bezpłatne funkcje, ogranicza równoległe zadania do trzech i blokuje uruchamianie nowych zadań Premium. Pobierania już rozpoczęte mogą się zakończyć.
+
+**Zachowana zgodność:** istniejące podpisane kody `YVD3-...` z 3.0 nadal działają. Starsze kody z datą (bez godziny) są ważne do końca wskazanego dnia według wcześniejszego modelu; w wersji 3.1 dokładny licznik jest dla nich przybliżeniem opartym na zakończeniu dnia w UTC. Nie trzeba wymieniać oryginalnego klucza prywatnego właściciela.
+
+## Wszystkie dotychczasowe funkcje
+
+- Pobieranie filmów i playlist YouTube, podgląd tytułu i miniatury.
+- MP4/MP3, najlepsza dostępna jakość, napisy i 1–3 zadania jednocześnie (bezpłatnie).
+- Turbo fragmentów, kolejka z przesuwaniem/ponawianiem, pauza/wznawianie i historia z wyszukiwarką.
+- Motywy: ciemny / jasny / neonowy; weryfikowane aktualizacje silnika yt-dlp.
+- **Premium:** do 5 pobrań naraz, Turbo Pro 16/24 fragmenty, przycinanie, konwersja MKV/WEBM/WAV i powiadomienia Windows.
 
 ## Instalacja przez GitHub w przeglądarce
 
-1. Rozpakuj `YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO_GITHUB.zip` na komputerze.
-2. Wejdź do swojego repozytorium na https://github.com/adamhalo327-jpg/YOUTUBE_VIDEO_DOWNLOADER_WINDOWS (jeśli nadal używasz tego repozytorium).
-3. Zakładka **Code → Add file → Upload files**. Przeciągnij **zawartość** rozpakowanego ZIP, zachowując strukturę folderów. Zatwierdź **Commit changes**. Nie wysyłaj samego ZIP do repozytorium — GitHub go nie rozpakowuje.
-4. Jeżeli folder `.github` nie jest przesłany: wejdź w **Add file → Create new file** i jako nazwę wpisz `.github/workflows/build-windows.yml`, a do edytora wklej zawartość pliku z ZIP.
-5. Sprawdź obecność: `app.py`, `gui.py`, `core.py`, `licensing.py`, `requirements.txt`, `.github/workflows/build-windows.yml`, `tests/*.py`.
-6. W GitHub Actions wybierz **Build YouTube Downloader 3.0 PRO EXE**. Uruchom **Run workflow** (jeśli brak automatycznej kompilacji).
-7. Po zielonym **Success** pobierz w sekcji **Artifacts** archiwum `YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO_WINDOWS`. Rozpakuj cały folder i uruchom `YOUTUBE_VIDEO_DOWNLOADER_3_0_PRO.exe`.
+1. Rozpakuj `YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM_TIMER_GITHUB_ACTIONS.zip` na komputerze.
+2. Otwórz https://github.com/adamhalo327-jpg/YOUTUBE_VIDEO_DOWNLOADER_WINDOWS i zakładkę **Code**.
+3. Wybierz **Add file → Upload files** i prześlij *zawartość* rozpakowanego folderu (nie sam ZIP). Zatwierdź **Commit changes**. Zastąp stare pliki, zachowując `.github/workflows` i `tests`.
+4. Jeśli folder `.github` nie przejdzie przez przeglądarkę: użyj **Add file → Create new file**, wpisz `.github/workflows/build-windows.yml` i wklej zawartość tego pliku z ZIP.
+5. Sprawdź obecność `app.py`, `gui.py`, `core.py`, `licensing.py`, `requirements.txt`, `tools/issue_premium_code.py`, `tools/premium_generator_gui.py`, `tests/test_premium_timer.py`, `.github/workflows/build-windows.yml`.
+6. Otwórz zakładkę **Actions → Build YouTube Downloader 3.1 PREMIUM TIMER EXE → Run workflow**, o ile budowanie nie uruchomiło się samo.
+7. Po zielonym **Success** pobierz **DWA OSOBNE ARTEFAKTY**:
+   - `YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM_WINDOWS`: program dla użytkowników (pełny folder z EXE, `_internal`, `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, `deno.exe`).
+   - `YVD_3_1_PREMIUM_OWNER_WINDOWS`: panel właściciela (`YVD_PREMIUM_OWNER.exe`) służący do generowania kodów.
+8. Wyodrębnij wszystkie pliki ZIP. Uruchom program `YOUTUBE_VIDEO_DOWNLOADER_3_1_PREMIUM.exe` na Windows.
 
-**Uwaga:** pliki `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe` i `deno.exe` są pobierane przez workflow, więc nie musisz instalować ręcznie Pythona ani FFmpeg. Nie wyjmuj EXE z folderu z narzędziami i podfolderem `_internal`. Kompilacja wymaga Internetu.
+Artefakt aplikacji jest **paczka folderowa**, nie pojedynczym plikiem EXE — nie wyjmuj EXE z rozpakowanego folderu.
 
-## Aktywacja Premium
+## Jak wydawać kody Premium bez programowania
 
-Otwórz zakładkę **Premium** → wklej pełny **YVD3-...** → **AKTYWUJ PREMIUM**. Kod ma cyfrowy podpis Ed25519; nie da się tworzyć poprawnych kodów bez klucza prywatnego. Działa offline przy aktywacji, bez logowania. Może mieć datę wygaśnięcia lub być bezterminowy. Kod przechowywany jest lokalnie w `%LOCALAPPDATA%\YouTubeVideoDownloader\premium-license.json`.
+1. Otwórz **`YVD_PREMIUM_OWNER.exe`** (osobny artefakt).
+2. Wybierz **swój ORYGINALNY klucz prywatny** `YVD_3_0_WLASCICIEL_KLUCZ_PRYWATNY.pem` na dysku. Ten plik został dostarczony osobno przy wersji 3.0; **nie jest w tym ZIP ani w żadnym EXE**.
+3. Wpisz nazwę odbiorcy.
+4. Wybierz **1 / 7 / 30 / 90 / 365 dni**, **Bezterminowo**, albo **Własny czas** i uzupełnij liczbę dni/godzin/minut.
+5. Kliknij **WYGENERUJ PODPISANY KOD PREMIUM** → **Kopiuj kod** lub **Zapisz kod do TXT**.
+6. Odbiorca otwiera główny program → **Premium** → wkleja **cały kod `YVD3-...`** → **AKTYWUJ PREMIUM**.
+7. Licznik zacznie pokazywać pozostały czas, aktualizując się co sekundę.
 
-**Dla właściciela:** osobno od ZIP otrzymujesz plik `YVD_3_0_WLASCICIEL_KLUCZ_PRYWATNY.pem` oraz pierwszy osobisty kod. Zachowaj PEM prywatnie, nigdy nie wgrywaj go do GitHub ani nie dołączaj do artefaktu EXE. Repozytorium zawiera wyłącznie klucz **publiczny**. Nowe kody można wystawiać na komputerze z Pythonem i pakietem `cryptography`:
+**Ważne:** prywatnego PEM **nigdy nie dodawaj do repozytorium GitHub**, artefaktu EXE, ZIP dla klientów ani wiadomości do klientów. Odbiorcom przekazujesz wyłącznie kod. Panel właściciela sprawdza, czy wskazany PEM odpowiada temu samemu kluczowi publicznemu, który jest w aplikacji. Dla kodów na zawsze możesz używać wielokrotnie tego samego PEM. Każdy wygenerowany kod ma własny identyfikator i podpis Ed25519.
+
+### Alternatywa: generator przez wiersz polecenia (Python)
 
 ```powershell
 python -m pip install cryptography
-python tools/issue_premium_code.py --key "C:\BezpiecznyFolder\YVD_3_0_WLASCICIEL_KLUCZ_PRYWATNY.pem" --name "Klient" --days 365
+python tools/issue_premium_code.py --key "C:\BezpiecznyFolder\YVD_3_0_WLASCICIEL_KLUCZ_PRYWATNY.pem" --name "Klient" --days 30
+python tools/issue_premium_code.py --key "C:\BezpiecznyFolder\YVD_3_0_WLASCICIEL_KLUCZ_PRYWATNY.pem" --name "VIP" --days 0
+python tools/issue_premium_code.py --key "C:\BezpiecznyFolder\YVD_3_0_WLASCICIEL_KLUCZ_PRYWATNY.pem" --name "Klient" --days 16 --hours 4 --minutes 10
 ```
 
-Użyj `--days 0` dla kodu bezterminowego. Bez osobnego serwera nie ma centralnego cofania kodów ani przypisywania kodu do konkretnego komputera; kod może zostać skopiowany przez odbiorcę.
+`--days 0` oznacza bezterminowo, gdy `--hours 0 --minutes 0`.
 
-## Jak korzystać
+## Bezpieczeństwo i ograniczenia
 
-- **Wznawianie**: kliknij Pauza przy zadaniu, następnie Wznów. Program próbuje użyć `.part` (yt-dlp `--continue --part`). Po ponownym otwarciu programu zadania pozostają w stanie Wstrzymano. Uwaga: nie każde źródło/format pozwala na pobieranie od miejsca przerwania; nie przenoś częściowych plików.
-- **Kolejka**: `↑` / `↓` dla pozycji oczekujących, `Wznów` dla wstrzymanych/nieudanych, `Usuń` dla zadań zbędnych.
-- **Przycinanie**: wpisz Od i Do jako `MM:SS` albo `HH:MM:SS`, np. Od `01:20`, Do `02:10`. Wymaga FFmpeg i Premium. Przycinanie po klatkach kluczowych lub z wymuszaniem klatek może spowalniać przetwarzanie. Przy playlistach zastosuje taki sam przedział do każdego filmu.
-- **Konwersja**: wybierz MKV, WEBM lub WAV w FORMAT. Konwersja do WEBM może być wielokrotnie wolniejsza, ponieważ FFmpeg musi ponownie kodować obraz i dźwięk. MP4 i MP3 pozostają dostępne bez Premium.
-- **Turbo Pro**: szybciej tylko, jeśli serwer dostarcza niezależne fragmenty. 24 równoległe fragmenty nie oznaczają 24× większej prędkości i mogą zwiększać obciążenie.
-- **Napisy**: opcja pobiera dostępne języki lub automatyczne napisy, jeśli YouTube je udostępnia. Nie dla każdego filmu są napisy.
-- **Historia**: tytuł, URL, rodzaj pliku i ścieżka; filtr działa lokalnie, dane nie są wysyłane na serwer aplikacji.
-- **Aktualizacje silnika**: w ustawieniach pobierane jest `yt-dlp.exe` z oficjalnego wydania yt-dlp i weryfikowana jest suma SHA256. FFmpeg, Deno i sama aplikacja nie są aktualizowane automatycznie.
+- Licencje i ich wygaśnięcie są sprawdzane **lokalnie** podpisem Ed25519. Nie ma serwera licencyjnego. Aktualna godzina pochodzi z systemu Windows; **manipulacja zegarem systemowym może wpłynąć na licznik i sprawdzanie ważności**. Pełna odporność wymagałaby weryfikacji online.
+- Kody można przekazywać między komputerami; nie ma przypisywania do urządzenia ani centralnego unieważniania. Dla sprzedaży komercyjnej warto w przyszłości dodać serwer licencji, aktywacje na konto i bezpieczny czas serwera.
+- Dane i historia nadal są przechowywane lokalnie w `%LOCALAPPDATA%\YouTubeVideoDownloader\` (w tym `premium-license.json`), więc aktualizacja zachowuje dane wersji 3.0.
+- Turbo może zwiększyć prędkość, ale nie gwarantuje przyspieszenia. Źródło, łącze, dostępne formaty, FFmpeg i aktualizacje yt-dlp mają wpływ na wynik.
 
-## Gdzie przechowywane są dane?
+## Testy
 
-`%LOCALAPPDATA%\YouTubeVideoDownloader\` zawiera historię, ustawienia, zapamiętaną kolejkę, licencję i nowszy zweryfikowany silnik. Twoje pobrane filmy są w folderze wskazanym w programie. Dane z 2.0 zachowują się: ta sama lokalizacja `history.json` i `settings.json`, nowa kolejka trafia do `queue-v3.json`.
-
-## Testy i ograniczenia
-
-Przed budowaniem EXE workflow instaluje biblioteki i uruchamia `python -m unittest discover -s tests -v`. GUI nie działa na maszynie testowej bez ekranu, więc należy także sprawdzić gotowy EXE na Windows. Pliki `yt-dlp`/`FFmpeg` wymagają aktualizacji przy zmianach YouTube. Żadna metoda nie zapewnia pobierania plików z DRM.
+`python -m unittest discover -s tests -v` — 40 testów kodu i zgodności 1.0–3.0. Środowisko testowe bez GUI nie weryfikuje wizualnego działania gotowych EXE; po kompilacji należy uruchomić obydwa na Windows i sprawdzić aktywację na podstawie testowego kodu o krótkiej ważności.

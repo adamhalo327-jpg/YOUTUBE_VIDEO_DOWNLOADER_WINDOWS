@@ -26,7 +26,7 @@ from core import (
     parse_progress, parse_urls, save_json, tool, update_engine, user_data_dir,
     valid_youtube_url, valid_video_url, yt_base_command as _yt_base_command,
 )
-from licensing import LicenseManager
+from licensing import LicenseManager, format_remaining
 
 # Public compatibility with 1.0 tests / 2.0 integrations.
 def yt_base_command():
@@ -142,6 +142,7 @@ class UltraDownloader(ctk.CTk):
         self._refresh_stats()
         self.after(100, self._drain_events)
         self.after(400, self._scheduler)
+        self.after(1000, self._tick_premium)
         if self.auto_update_var.get() and sys.platform == "win32":
             self.after(3000, lambda: self._update_engine(force=False))
         self.protocol("WM_DELETE_WINDOW", self._close)
@@ -182,7 +183,9 @@ class UltraDownloader(ctk.CTk):
         head = ctk.CTkFrame(self, fg_color=self.bg)
         head.pack(fill="x", padx=20, pady=(15, 5))
         self._text(head, "▶  YOUTUBE VIDEO DOWNLOADER", 22, bold=True).pack(side="left")
-        self._text(head, "PRO EDITION 3.0", 13, self.accent, bold=True).pack(side="right", padx=8)
+        self._text(head, "PRO EDITION 3.1", 13, self.accent, bold=True).pack(side="right", padx=8)
+        self.premium_header = self._text(head, "", 11, self.accent, bold=True)
+        self.premium_header.pack(side="right", padx=12)
         self._text(self, "Playlisty  •  MP4 / MP3  •  Napisy  •  Turbo Pro  •  Kolejka  •  Konwersja  •  Premium", 12, self.muted).pack(anchor="w", padx=25)
         self.tabs = ctk.CTkTabview(self, fg_color=self.bg, segmented_button_fg_color=self.panel,
                                   segmented_button_selected_color=self.hover,
@@ -312,7 +315,11 @@ class UltraDownloader(ctk.CTk):
         frame.pack(fill="x", padx=8, pady=8)
         self._text(frame, "💎  PREMIUM — AKTYWACJA SPECJALNYM KODEM", 21, bold=True).pack(anchor="w", padx=21, pady=(23, 7))
         self.premium_info = self._text(frame, "", 13, self.accent, anchor="w")
-        self.premium_info.pack(fill="x", padx=21, pady=10)
+        self.premium_info.pack(fill="x", padx=21, pady=(10, 3))
+        self.premium_clock = self._text(frame, "", 18, self.accent, bold=True, anchor="w")
+        self.premium_clock.pack(fill="x", padx=21, pady=(3, 6))
+        self.premium_expiry = self._text(frame, "", 12, self.muted, anchor="w")
+        self.premium_expiry.pack(fill="x", padx=21, pady=(0, 12))
         self._text(frame, "Odblokowuje: Turbo Pro 16/24, 4–5 równoległych zadań, przycinanie,\n"
                           "MKV / WEBM / WAV oraz powiadomienia Windows.", 12, self.muted,
                    justify="left").pack(anchor="w", padx=21, pady=(0, 14))
@@ -329,12 +336,48 @@ class UltraDownloader(ctk.CTk):
         self._refresh_premium_ui()
 
     def _refresh_premium_ui(self):
-        data = self.license.info()
-        if data:
-            exp = data.get("expires") or "bezterminowa"
-            self.premium_info.configure(text=f"✅ PREMIUM AKTYWNE  •  {data.get('owner', 'Użytkownik')}  •  ważna do: {exp}", text_color=self.accent)
+        details = self.license.status()
+        state, data = details["state"], details["payload"]
+        expires = details["expires_at"]
+        if state == "active":
+            owner = str(data.get("owner") or "Użytkownik")[:70]
+            remaining = details["remaining"]
+            self.premium_info.configure(text=f"✅ PREMIUM AKTYWNE  •  {owner}", text_color=self.accent)
+            self.premium_clock.configure(text="⏳  POZOSTAŁO: " + format_remaining(remaining), text_color=self.accent)
+            if expires is None:
+                self.premium_expiry.configure(text="Ważność: na zawsze — kod nie ma daty wygaśnięcia.")
+                self.premium_header.configure(text="💎 PREMIUM BEZTERMINOWO", text_color=self.accent)
+            else:
+                self.premium_expiry.configure(text="Ważne do: " + expires.astimezone().strftime("%d.%m.%Y • %H:%M:%S (czas lokalny)"))
+                if remaining >= 86400:
+                    compact = f"{remaining // 86400} d {remaining % 86400 // 3600} h"
+                else:
+                    compact = f"{remaining // 3600} h {remaining % 3600 // 60} min"
+                color = self.error if remaining <= 86400 else self.accent
+                self.premium_header.configure(text="💎 PREMIUM: " + compact, text_color=color)
+                self.premium_clock.configure(text_color=color)
+        elif state == "expired":
+            self.premium_info.configure(text="⌛ PREMIUM WYGASŁO — aktywuj nowy kod.", text_color=self.error)
+            self.premium_clock.configure(text="Pozostały czas: 0 sek.", text_color=self.error)
+            self.premium_expiry.configure(text="Kod wygasł: " + expires.astimezone().strftime("%d.%m.%Y • %H:%M:%S (czas lokalny)") if expires else "")
+            self.premium_header.configure(text="⌛ PREMIUM WYGASŁO", text_color=self.error)
         else:
             self.premium_info.configure(text="🔒 WERSJA DARMOWA — wpisz kod, aby aktywować Premium.", text_color=self.muted)
+            self.premium_clock.configure(text="Pozostały czas: —", text_color=self.muted)
+            self.premium_expiry.configure(text="" if state == "free" else "Nieprawidłowy zapis licencji. Aktywuj poprawny kod.")
+            self.premium_header.configure(text="FREE", text_color=self.muted)
+        if state != "active" and self.max_parallel > 3:
+            # Premium expires automatically, including while the program is open.
+            # Existing downloads may finish, but no new Premium tasks may start.
+            self.max_parallel = 3
+            self.parallel_var.set("3")
+            self._save_settings()
+
+    def _tick_premium(self):
+        if self.closing:
+            return
+        self._refresh_premium_ui()
+        self.after(1000, self._tick_premium)
 
     def _activate_license(self):
         code = self.license_box.get("1.0", "end").strip()
