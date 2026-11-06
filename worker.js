@@ -155,7 +155,7 @@ async function handleAdmin(path, body, env, fingerprint) {
     if(!found)return json({error:'Nie znaleziono portfela'},404);
     const grants=await env.DB.prepare('SELECT COALESCE(SUM(amount),0) AS total FROM token_admin_grants WHERE wallet_id=?').bind(id).first();
     const rewards=await env.DB.prepare('SELECT COALESCE(SUM(delta),0) AS total FROM token_ledger WHERE wallet_id=?').bind(id).first();
-    return json({wallet_id:id,created_at:found.created_at,balance:Number(grants?.total||0)+Number(rewards?.total||0)});
+    return json({wallet_id:id,created_at:found.created_at,balance:await balanceOf(env,id)});
   }
   if (path === '/admin/token-grant') {
     const id=typeof body.wallet_id==='string'?body.wallet_id.trim():'';
@@ -188,7 +188,9 @@ async function handleAdmin(path, body, env, fingerprint) {
 // The desktop is untrusted: its "download completed" signal is NOT cryptographic proof.
 const WALLET_DEVICE = /^[a-f0-9]{32}$/;
 const WALLET_KEY = /^yvdw-[a-f0-9]{64}$/;
-const TOKEN_PACKAGES = Object.freeze({STARTER:[100,1],PRO:[500,7],ULTRA:[1500,30]});
+const TOKEN_PACKAGES = Object.freeze({STARTER:[100,1],PRO:[500,7],ULTRA:[1500,30],PLUS:[250,3],LEGEND:[3000,90]});
+const TOKEN14_PACKAGES = new Set(['PLUS','LEGEND']);
+const MISSIONS14=Object.freeze({DAILY_3:{count:3,reward:20},WEEKLY_15:{count:15,reward:80}});
 const unix = () => Math.floor(Date.now()/1000);
 const walletAuth = async (request, body, env) => {
   const token=(request.headers.get('authorization')||'').replace(/^Bearer /i,'');
@@ -200,12 +202,33 @@ const walletAuth = async (request, body, env) => {
 const balanceOf = async (env,id) => {
   const a=await env.DB.prepare('SELECT COALESCE(SUM(delta),0) AS balance FROM token_ledger WHERE wallet_id=?').bind(id).first();
   const g=await env.DB.prepare('SELECT COALESCE(SUM(amount),0) AS total FROM token_admin_grants WHERE wallet_id=?').bind(id).first();
-  return Number(a?.balance||0)+Number(g?.total||0);
+  const b=await env.DB.prepare('SELECT COALESCE(SUM(reward),0) AS total FROM token_mission_claims14 WHERE wallet_id=?').bind(id).first();
+  const p=await env.DB.prepare('SELECT COALESCE(SUM(price),0) AS total FROM token_purchases14 WHERE wallet_id=?').bind(id).first();
+  return Number(a?.balance||0)+Number(g?.total||0)+Number(b?.total||0)-Number(p?.total||0);
 };
 const walletStatus = async (env,id) => {
   const expiry=await env.DB.prepare('SELECT MAX(expires_at_s) AS expiry FROM token_purchases WHERE wallet_id=?').bind(id).first();
-  const expires=Number(expiry?.expiry||0);
+  const extra=await env.DB.prepare('SELECT MAX(expires_at_s) AS expiry FROM token_purchases14 WHERE wallet_id=?').bind(id).first();
+  const expires=Math.max(Number(expiry?.expiry||0),Number(extra?.expiry||0));
   return {wallet_id:id,balance:await balanceOf(env,id),premium_until:expires>0?new Date(expires*1000).toISOString():null,active:expires>unix()};
+};
+const missionPeriod14 = (name) => {
+  const date=new Date();
+  if(name==='DAILY_3')return date.toISOString().slice(0,10);
+  // ISO week starts Monday and is stable across year boundaries.
+  const day=date.getUTCDay()||7;
+  date.setUTCDate(date.getUTCDate()-day+1);
+  return date.toISOString().slice(0,10);
+};
+const missionProgress14 = async (env,id,name) => {
+  const period=missionPeriod14(name);
+  const start=name==='DAILY_3'?period:new Date(`${period}T00:00:00Z`).toISOString().slice(0,10);
+  const counter=await env.DB.prepare(`SELECT COUNT(*) AS n FROM token_ledger
+    WHERE wallet_id=? AND kind='reward' AND day >= ? AND day <= ?`)
+    .bind(id,start,new Date().toISOString().slice(0,10)).first();
+  const claimed=await env.DB.prepare('SELECT 1 AS ok FROM token_mission_claims14 WHERE wallet_id=? AND mission=? AND period=?')
+    .bind(id,name,period).first();
+  return {id:name,period,progress:Number(counter?.n||0),target:MISSIONS14[name].count,reward:MISSIONS14[name].reward,claimed:!!claimed};
 };
 async function handleWallet(path,body,request,env,ipHash) {
   const device=typeof body.device==='string'?body.device:'';
@@ -225,6 +248,26 @@ async function handleWallet(path,body,request,env,ipHash) {
   const id=await walletAuth(request,body,env);
   if(!id)return json({error:'Nieautoryzowany portfel'},401);
   if(path==='/wallet/status')return json(await walletStatus(env,id));
+  if(path==='/wallet/missions') {
+    const missions=[];
+    for(const name of Object.keys(MISSIONS14))missions.push(await missionProgress14(env,id,name));
+    return json({...await walletStatus(env,id),missions});
+  }
+  if(path==='/wallet/claim-mission') {
+    const name=typeof body.mission==='string'?body.mission:'';
+    if(!MISSIONS14[name])return json({error:'Nieznana misja'},400);
+    const period=missionPeriod14(name),spec=MISSIONS14[name];
+    const start=period, end=day;
+    // One conditional insert is the entire claim: duplicate claims cannot mint twice.
+    const inserted=await env.DB.prepare(`INSERT OR IGNORE INTO token_mission_claims14
+      (id,wallet_id,mission,period,reward,created_at)
+      SELECT ?,?,?,?,?,?
+      WHERE (SELECT COUNT(*) FROM token_ledger
+        WHERE wallet_id=? AND kind='reward' AND day>=? AND day<=?) >= ?`)
+      .bind(crypto.randomUUID(),id,name,period,spec.reward,nowIso(),id,start,end,spec.count).run();
+    const progress=await missionProgress14(env,id,name);
+    return json({...await walletStatus(env,id),awarded:Number(inserted.meta?.changes||0)===1?spec.reward:0,mission:progress});
+  }
   if(path==='/wallet/start') {
     if(typeof body.url!=='string'||body.url.length>2048)return json({error:'Invalid URL'},400);
     let address;
@@ -265,6 +308,20 @@ async function handleWallet(path,body,request,env,ipHash) {
     if(!spec)return json({error:'Nieznany pakiet'},400);
     const requestId=typeof body.request_id==='string'?body.request_id:'';
     if(!UUID.test(requestId))return json({error:'Invalid request id'},400);
+    if(TOKEN14_PACKAGES.has(name)) {
+      const old=await env.DB.prepare('SELECT 1 AS ok FROM token_purchases14 WHERE id=? AND wallet_id=?').bind(requestId,id).first();
+      if(old)return json({...await walletStatus(env,id),already_processed:true});
+      const put=await env.DB.prepare(`INSERT OR IGNORE INTO token_purchases14(id,wallet_id,package,price,expires_at_s,created_at)
+         SELECT ?,?,?,?,MAX(?,COALESCE((SELECT MAX(expires_at_s) FROM token_purchases WHERE wallet_id=?),0),
+           COALESCE((SELECT MAX(expires_at_s) FROM token_purchases14 WHERE wallet_id=?),0))+?,?
+         WHERE ((SELECT COALESCE(SUM(delta),0) FROM token_ledger WHERE wallet_id=?)
+           +(SELECT COALESCE(SUM(amount),0) FROM token_admin_grants WHERE wallet_id=?)
+           +(SELECT COALESCE(SUM(reward),0) FROM token_mission_claims14 WHERE wallet_id=?)
+           -(SELECT COALESCE(SUM(price),0) FROM token_purchases14 WHERE wallet_id=?)) >= ?`)
+         .bind(requestId,id,name,spec[0],unix(),id,id,spec[1]*86400,nowIso(),id,id,id,id,spec[0]).run();
+      if(Number(put.meta?.changes||0)!==1)return json({...await walletStatus(env,id),error:'Za mało tokenów'},409);
+      return json({...await walletStatus(env,id),package:name});
+    }
     const debit='buy:'+requestId;
     const existing=await env.DB.prepare('SELECT 1 AS ok FROM token_purchases WHERE id=? AND wallet_id=?').bind(requestId,id).first();
     if(existing)return json({...await walletStatus(env,id),already_processed:true});
@@ -272,12 +329,12 @@ async function handleWallet(path,body,request,env,ipHash) {
     await env.DB.batch([
       env.DB.prepare(`INSERT OR IGNORE INTO token_ledger(id,wallet_id,delta,kind,day,url_hash,ip_hash,created_at)
        SELECT ?,?,-?,'purchase',?,NULL,NULL,?
-       WHERE ((SELECT COALESCE(SUM(delta),0) FROM token_ledger WHERE wallet_id=?) + (SELECT COALESCE(SUM(amount),0) FROM token_admin_grants WHERE wallet_id=?))>=?`)
-       .bind(debit,id,spec[0],day,nowIso(),id,id,spec[0]),
+       WHERE ((SELECT COALESCE(SUM(delta),0) FROM token_ledger WHERE wallet_id=?) + (SELECT COALESCE(SUM(amount),0) FROM token_admin_grants WHERE wallet_id=?) + (SELECT COALESCE(SUM(reward),0) FROM token_mission_claims14 WHERE wallet_id=?) - (SELECT COALESCE(SUM(price),0) FROM token_purchases14 WHERE wallet_id=?))>=?`)
+       .bind(debit,id,spec[0],day,nowIso(),id,id,id,id,spec[0]),
       env.DB.prepare(`INSERT OR IGNORE INTO token_purchases(id,wallet_id,package,price,expires_at_s,created_at)
-       SELECT ?,?,?,?,MAX(?,COALESCE((SELECT MAX(expires_at_s) FROM token_purchases WHERE wallet_id=?),0))+?,?
+       SELECT ?,?,?,?,MAX(?,COALESCE((SELECT MAX(expires_at_s) FROM token_purchases WHERE wallet_id=?),0),COALESCE((SELECT MAX(expires_at_s) FROM token_purchases14 WHERE wallet_id=?),0))+?,?
        FROM token_ledger WHERE id=? AND wallet_id=?`)
-       .bind(requestId,id,name,spec[0],unix(),id,spec[1]*86400,nowIso(),debit,id)
+       .bind(requestId,id,name,spec[0],unix(),id,id,spec[1]*86400,nowIso(),debit,id)
     ]);
     const row=await env.DB.prepare('SELECT id FROM token_purchases WHERE id=? AND wallet_id=?').bind(requestId,id).first();
     if(!row)return json({...await walletStatus(env,id),error:'Za mało tokenów'},409);
@@ -290,11 +347,11 @@ export default {
   async fetch(request, env) {
     try {
       const url = new URL(request.url), path = url.pathname;
-      if (path === '/health' && request.method === 'GET') return json({ok: true, service: 'YVD Premium Cloud 5.1 + Token Shop 12.1'});
+      if (path === '/health' && request.method === 'GET') return json({ok: true, service: 'YVD Premium Cloud 5.1 + Token Shop 14.0'});
       if (!env.DB) return json({error: 'Baza D1 nie skonfigurowana'}, 503);
       if (request.method !== 'POST') return json({error: 'Method not allowed'}, 405, {'Allow': 'POST'});
       if (path.startsWith('/wallet/')) {
-        if(!['/wallet/register','/wallet/status','/wallet/start','/wallet/complete','/wallet/buy'].includes(path))return json({error:'Not found'},404);
+        if(!['/wallet/register','/wallet/status','/wallet/start','/wallet/complete','/wallet/buy','/wallet/missions','/wallet/claim-mission'].includes(path))return json({error:'Not found'},404);
         const fp=await ipFingerprint(request,env);
         const limit=await rateLimit(env,'wallet-api',fp,{max:150,seconds:600});
         if(limit)return limit;

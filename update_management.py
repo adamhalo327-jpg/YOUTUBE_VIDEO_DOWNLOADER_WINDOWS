@@ -21,7 +21,7 @@ def _url_good(url,asset=False):
 
 def official_assets(opener=urlopen):
     release=check_release(opener)
-    if not release['newer']:raise ValueError('Brak wydania nowszego od 13.0.0')
+    if not release['newer']:raise ValueError('Brak wydania nowszego od 14.0.0')
     tag=release['tag']
     # Prefer file with version encoded in name, but allow patch builds reusing major.minor name.
     ver=tag.lstrip('vV').split('.')
@@ -37,7 +37,7 @@ def official_assets(opener=urlopen):
 
 
 def _open(opener,url,timeout):
-    req=Request(_url_good(url),headers={'User-Agent':'YVD-Update-Center-13'})
+    req=Request(_url_good(url),headers={'User-Agent':'YVD-Update-Center-14'})
     return opener(req,timeout=timeout)
 
 

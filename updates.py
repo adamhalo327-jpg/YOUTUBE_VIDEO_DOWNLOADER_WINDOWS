@@ -11,7 +11,7 @@ ROOT=f"https://github.com/{OWNER}/{REPO}"
 RELEASES_API=f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
 RELEASES_LIST_API=f"https://api.github.com/repos/{OWNER}/{REPO}/releases?per_page=15"
 RELEASES_WEB=f"{ROOT}/releases/latest"
-CURRENT_VERSION="13.0.0"
+CURRENT_VERSION="14.0.0"
 
 
 def version_tuple(value):
@@ -26,7 +26,7 @@ def newer(tag,current=CURRENT_VERSION):
 
 
 def _get_json(url,opener=urlopen,max_bytes=1_000_000):
-    req=Request(url,headers={"Accept":"application/vnd.github+json","User-Agent":"YVD-Update-Center-13"})
+    req=Request(url,headers={"Accept":"application/vnd.github+json","User-Agent":"YVD-Update-Center-14"})
     with opener(req,timeout=15) as resp:
         effective=getattr(resp,'url',url)
         if urlparse(effective).hostname!='api.github.com' or urlparse(effective).scheme!='https':

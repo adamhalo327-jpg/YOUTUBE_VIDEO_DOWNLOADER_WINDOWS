@@ -19,7 +19,7 @@ class DistributionV4Tests(unittest.TestCase):
         windows_titles=[x for x in ast.walk(init) if isinstance(x,ast.Call) and isinstance(x.func,ast.Attribute) and x.func.attr=='title']
         self.assertEqual(len(windows_titles), 1)
         self.assertEqual(ast.unparse(windows_titles[0]), 'self.title(APP_TITLE)')
-        self.assertIn('AUTO UPDATE CENTER 13.0',code)
+        self.assertIn('TOKEN SHOP 14.0',code)
 
     def test_installer_contains_folder_and_uninstall(self):
         script=(ROOT / 'installer/YOUTUBE_VIDEO_DOWNLOADER.iss').read_text(encoding='utf-8')

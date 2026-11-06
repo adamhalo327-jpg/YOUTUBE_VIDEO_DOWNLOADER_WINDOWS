@@ -17,6 +17,8 @@ PACKAGES = {
     'STARTER': {'tokens': 100, 'days': 1},
     'PRO': {'tokens': 500, 'days': 7},
     'ULTRA': {'tokens': 1500, 'days': 30},
+    'PLUS': {'tokens': 250, 'days': 3},
+    'LEGEND': {'tokens': 3000, 'days': 90},
 }
 TOKEN_PER_DOWNLOAD = 10
 DAILY_CAP = 100
@@ -115,3 +117,11 @@ class CloudTokenShop:
         if result.get('error'):raise ValueError(result['error'])
         if not self._until:raise ValueError('Serwer nie potwierdził zakupu')
         return self._until
+
+    def missions(self):
+        return self._call('/wallet/missions')
+
+    def claim_mission(self, name):
+        if name not in ('DAILY_3', 'WEEKLY_15'):
+            raise ValueError('Nieznana misja')
+        return self._call('/wallet/claim-mission', {'mission': name})

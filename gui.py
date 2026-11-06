@@ -243,7 +243,7 @@ class UltraDownloader(ctk.CTk):
         head = ctk.CTkFrame(self, fg_color=self.bg)
         head.pack(fill="x", padx=20, pady=(15, 5))
         self._text(head, "▶  YOUTUBE VIDEO DOWNLOADER", 22, bold=True).pack(side="left")
-        self._text(head, "AUTO UPDATE CENTER 13.0", 13, self.accent, bold=True).pack(side="right", padx=8)
+        self._text(head, "TOKEN SHOP 14.0", 13, self.accent, bold=True).pack(side="right", padx=8)
         self.premium_header = self._text(head, "", 11, self.accent, bold=True)
         self.premium_header.pack(side="right", padx=12)
         self._text(self, "Universal Downloader  •  Playlisty  •  MP4 / MP3  •  Napisy  •  Turbo Pro  •  Premium", 12, self.muted).pack(anchor="w", padx=25)
@@ -251,7 +251,7 @@ class UltraDownloader(ctk.CTk):
                                   segmented_button_selected_color=self.hover,
                                   segmented_button_unselected_color=self.panel2)
         self.tabs.pack(fill="both", expand=True, padx=16, pady=(7, 7))
-        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0", "Universal 12.0", "Sklep tokenow", "Auto Update 13.0"):
+        for tab in ("Pobieranie", "Playlisty", "Video Studio", "Historia", "Statystyki", "Ustawienia", "Premium", "Cloud", "Centrum 10.0", "Universal 12.0", "Sklep tokenow", "Auto Update 14.0"):
             self.tabs.add(tab)
         self._download_tab(self.tabs.tab("Pobieranie"))
         self._playlist_tab(self.tabs.tab("Playlisty"))
@@ -264,7 +264,7 @@ class UltraDownloader(ctk.CTk):
         self._data_center_tab(self.tabs.tab("Centrum 10.0"))
         self._universal_tab(self.tabs.tab("Universal 12.0"))
         self._token_shop_tab(self.tabs.tab("Sklep tokenow"))
-        self._update_center_tab(self.tabs.tab("Auto Update 13.0"))
+        self._update_center_tab(self.tabs.tab("Auto Update 14.0"))
         self.after(200, self._universal_poll)
         foot = ctk.CTkFrame(self, fg_color=self.bg)
         foot.pack(fill="x", padx=25, pady=(0, 10))
@@ -834,7 +834,7 @@ class UltraDownloader(ctk.CTk):
     def _token_shop_tab(self, root):
         panel=ctk.CTkScrollableFrame(root,fg_color=self.panel)
         panel.pack(fill="both",expand=True,padx=8,pady=8)
-        self._text(panel,"🪙 SKLEP TOKENÓW — 12.1",22,self.accent,bold=True).pack(anchor="w",padx=18,pady=(15,8))
+        self._text(panel,"🪙 TOKEN SHOP 14.0 — NAGRODY I MISJE",22,self.accent,bold=True).pack(anchor="w",padx=18,pady=(15,8))
         self.token_balance_label=self._text(panel,"",19,self.accent,bold=True)
         self.token_balance_label.pack(anchor="w",padx=18,pady=8)
         self.token_wallet_id_label=self._text(panel,"ID portfela: odśwież, aby wyświetlić",11,self.muted)
@@ -848,9 +848,37 @@ class UltraDownloader(ctk.CTk):
             line.pack(fill="x",padx=18,pady=6)
             self._text(line,f"{name}  •  {spec['days']} dni dostępu Premium  •  {spec['tokens']} tokenów",13,bold=True).pack(side="left",padx=15,pady=17)
             self._button(line,"KUP ZA TOKENY",lambda key=name:self._buy_tokens(key),width=160).pack(side="right",padx=12)
-        self._text(panel,"Saldo i zakupy przechowywane są w Cloudflare D1. Wymagane jest połączenie HTTPS z Premium Cloud 5.1 + Token Shop 12.1.\nPrzyznanie tokenów zależy od zgłoszenia aplikacji i nie jest kryptograficznym dowodem pobrania; system zawiera limity nadużyć.",11,self.muted,wraplength=840,justify="left").pack(anchor="w",padx=18,pady=20)
+        self._text(panel,"Saldo i zakupy przechowywane są w Cloudflare D1. Wymagane jest połączenie HTTPS z Premium Cloud 5.1 + Token Shop 14.0.\nPrzyznanie tokenów zależy od zgłoszenia aplikacji i nie jest kryptograficznym dowodem pobrania; system zawiera limity nadużyć.",11,self.muted,wraplength=840,justify="left").pack(anchor="w",padx=18,pady=20)
         self._button(panel,"ODŚWIEŻ PORTFEL Z CHMURY",self._refresh_wallet_async,width=270).pack(anchor="w",padx=18,pady=5)
+        self._text(panel,"MISJE I NAGRODY 14.0",18,self.accent,bold=True).pack(anchor="w",padx=18,pady=(18,7))
+        self.token_missions_label=self._text(panel,"Kliknij odśwież, aby pobrać postęp misji.",12,self.muted,wraplength=830,justify="left")
+        self.token_missions_label.pack(anchor="w",padx=18,pady=6)
+        for code,label in [('DAILY_3','DZIENNA: 3 nagrodzone pobrania • +20 tokenów'),('WEEKLY_15','TYGODNIOWA: 15 nagrodzonych pobrań • +80 tokenów')]:
+            self._button(panel,'ODBIERZ — '+label,lambda m=code:self._claim_mission_async(m),width=550).pack(anchor="w",padx=18,pady=5)
+        self._button(panel,"ODŚWIEŻ MISJE",self._refresh_missions_async,width=250,secondary=True).pack(anchor="w",padx=18,pady=8)
         self._refresh_token_shop()
+        self.after(5000,self._refresh_missions_async)
+
+    def _refresh_missions_async(self):
+        def run():
+            try:
+                data=self.tokens.missions()
+                lines=[f"{m['id']}: {m['progress']}/{m['target']} • +{m['reward']} tokenów • "+('ODEBRANO' if m['claimed'] else 'do odbioru' if m['progress']>=m['target'] else 'w toku') for m in data.get('missions',[])]
+                self.events.put(('token_missions','\n'.join(lines) or 'Brak misji'))
+            except Exception as exc:
+                self.events.put(('token_missions','Błąd misji: '+str(exc)[:150]))
+        self.pool.submit(run)
+
+    def _claim_mission_async(self,code):
+        def run():
+            try:
+                result=self.tokens.claim_mission(code)
+                awarded=result.get('awarded',0)
+                self.events.put(('wallet_status',f'Misja {code}: +{awarded} tokenów' if awarded else 'Misja nieukończona lub nagroda już odebrana',False))
+                self._refresh_missions_async()
+            except Exception as exc:
+                self.events.put(('wallet_status','Misja: '+str(exc)[:150],True))
+        self.pool.submit(run)
 
     def _refresh_token_shop(self):
         if not hasattr(self,"token_balance_label"): return
@@ -1492,7 +1520,7 @@ class UltraDownloader(ctk.CTk):
                         if not quiet and messagebox.askyesno("Aktualizacja aplikacji", "Dostępne jest nowe wydanie. Otworzyć oficjalną stronę pobierania?\nInstalacja wymaga Twojego potwierdzenia."):
                             self._open_release_page()
                     else:
-                        self.app_update_status.configure(text="Masz aktualną wersję 13.0 lub brak nowszego wydania.", text_color=self.muted)
+                        self.app_update_status.configure(text="Masz aktualną wersję 14.0 lub brak nowszego wydania.", text_color=self.muted)
                         if not quiet:
                             messagebox.showinfo("Aktualizacja aplikacji", "Brak nowszego wydania GitHub Releases.")
                 elif kind == "app_update_error":
@@ -1523,6 +1551,9 @@ class UltraDownloader(ctk.CTk):
                     self.playlist_output.delete("1.0","end");self.playlist_output.insert("1.0",ev[1])
                 elif kind == "studio_done":
                     self.studio_info.configure(text=ev[1][:220])
+                elif kind == "token_missions":
+                    if hasattr(self,"token_missions_label"):
+                        self.token_missions_label.configure(text=ev[1])
                 elif kind == "wallet_status":
                     self._refresh_token_shop()
                     self._status(ev[1])
