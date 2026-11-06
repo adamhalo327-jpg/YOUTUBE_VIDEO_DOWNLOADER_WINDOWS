@@ -1,3 +1,10 @@
+name: Build YouTube Downloader 3.1 PREMIUM TIMER EXE
+
+on: [push, workflow_dispatch]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
