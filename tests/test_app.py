@@ -26,7 +26,8 @@ class DownloaderTests(unittest.TestCase):
                 self.assertFalse(valid_video_url(url))
 
     def test_mp4_quality(self):
-        with patch("app.yt_base_command", return_value=["yt-dlp.exe"]):
+        with patch("app.yt_base_command", return_value=["yt-dlp.exe"]), \
+             patch("app.tool", return_value="C:/ffmpeg.exe"):
             cmd = make_download_command("https://youtu.be/abc", Path("C:/Videos"),
                                         "MP4 (wideo)", "720p (HD)")
         self.assertIn("--merge-output-format", cmd)
