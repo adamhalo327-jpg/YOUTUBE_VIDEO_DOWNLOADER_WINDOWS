@@ -31,6 +31,18 @@ class AudioFixTests(unittest.TestCase):
                 self.assertNotIn("bv*", fmt)
                 self.assertIn("--merge-output-format", cmd)
 
+    def test_universal_emits_final_file_for_audio_validation(self):
+        selection = UniversalSelection(
+            url="https://youtu.be/example", folder=Path("C:/Test"),
+            container="MP4", quality="720p"
+        )
+        command = build_command(
+            selection, premium=True, base=["yt-dlp"], ffmpeg="ffmpeg.exe"
+        )
+        self.assertIn("--print", command)
+        self.assertIn("after_move:FILE:%(filepath)s", command)
+        self.assertIn("+ba", command[command.index("-f") + 1])
+
     def test_universal_requires_ffmpeg_for_video(self):
         selection = UniversalSelection(
             url="https://youtu.be/example", folder=Path("C:/Test"),
