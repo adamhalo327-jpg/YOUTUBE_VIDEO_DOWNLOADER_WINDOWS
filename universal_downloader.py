@@ -105,11 +105,13 @@ def build_command(s: UniversalSelection, *, premium: bool, base=None, ffmpeg=Non
         if not ff: raise FileNotFoundError("Konwersja audio wymaga ffmpeg.exe.")
         cmd += ["-f", "bestaudio/best", "-x", "--audio-format", s.container.lower()]
     else:
+        if not ff:
+            raise FileNotFoundError("Pobieranie wideo z dźwiękiem wymaga ffmpeg.exe.")
         if s.quality == "Najlepsza dostępna":
-            format_selector = "bv*+ba/b"
+            format_selector = "bv+ba/b"
         else:
             h = int(re.match(r"^(\d+)p", s.quality).group(1))
-            format_selector = f"bv*[height<={h}]+ba/b[height<={h}]/b"
+            format_selector = f"bv[height<={h}]+ba/b[height<={h}]/b[height<={h}]"
         cmd += ["-f", format_selector, "--merge-output-format", s.container.lower()]
         if s.container != "MKV":
             if not ff: raise FileNotFoundError("Konwersja wideo wymaga ffmpeg.exe.")
