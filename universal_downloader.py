@@ -98,7 +98,9 @@ def build_command(s: UniversalSelection, *, premium: bool, base=None, ffmpeg=Non
     cmd += ["--yes-playlist" if s.playlist else "--no-playlist", "--newline", "--progress",
             "--progress-template", "download:PROGRESS:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s",
             "--print", "after_move:FILE:%(filepath)s", "--paths", str(s.folder),
-            "-o", "%(title).180B [%(id)s].%(ext)s", "--continue", "--part", "--no-overwrites",
+            "-o", "%(title).180B [%(id)s].%(ext)s",
+            "--print", "after_move:FILE:%(filepath)s",
+            "--continue", "--part", "--no-overwrites",
             "--retries", "5", "--fragment-retries", "5"]
     ff = ffmpeg if ffmpeg is not None else tool("ffmpeg.exe") or tool("ffmpeg")
     if s.container in AUDIO:
