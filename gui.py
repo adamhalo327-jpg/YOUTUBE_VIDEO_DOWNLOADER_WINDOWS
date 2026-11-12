@@ -26,7 +26,7 @@ from core import (
     QUALITY_OPTIONS, SPEED_PROFILES, fetch_thumbnail, is_playlist_url, load_json,
     make_download_command as _make_download_command, metadata_command, normalize_trim_range,
     parse_progress, parse_urls, save_json, tool, update_engine, user_data_dir,
-    valid_youtube_url, valid_video_url, yt_base_command as _yt_base_command,
+    valid_youtube_url, valid_video_url, yt_base_command as _yt_base_command, verify_video_contains_audio,
 )
 from licensing import LicenseManager, format_remaining
 from download_statistics import summarize, readable_bytes
@@ -427,10 +427,16 @@ class UltraDownloader(ctk.CTk):
                     encoding="utf-8", errors="replace", bufsize=1, creationflags=flags)
                 self.universal_process = proc
                 saw_download = False
+                finished_paths = []
                 for line in proc.stdout:
                     self.universal_events.put(("line", line.strip()[:500]))
+                    if line.startswith("FILE:"):
+                        finished_paths.append(line[len("FILE:"):].strip())
                     if "[download]" in line and ("100%" in line or "Destination:" in line): saw_download = True
                 rc = proc.wait()
+                if rc == 0 and selection.container in {"MP4", "MKV", "WEBM"}:
+                    for output in finished_paths:
+                        verify_video_contains_audio(output)
                 self.universal_events.put(("done", "Pobrano pomyślnie." if rc == 0 else "Zadanie przerwano lub wystąpił błąd (" + str(rc) + ").", ticket if rc == 0 and saw_download else None))
             except Exception as exc: self.universal_events.put(("done", "Błąd: " + str(exc)[:250]))
             finally: self.universal_process = None
@@ -1396,6 +1402,7 @@ class UltraDownloader(ctk.CTk):
         try:ticket = self.tokens.start(task.url)
         except (OSError, ValueError):pass
         logs = []
+        finalized_files = []
         had_file = False
         current_title = task.title
         state, message = "Błąd", ""
@@ -1423,6 +1430,7 @@ class UltraDownloader(ctk.CTk):
                             current_title = evt["title"] or current_title
                             self.events.put(("item", task.id, evt))
                         elif evt["type"] == "file":
+                            finalized_files.append(evt["path"])
                             had_file = True
                             task.files += 1
                             self.history.add({"title": current_title, "url": task.url,
@@ -1434,6 +1442,9 @@ class UltraDownloader(ctk.CTk):
                         if len(logs) > 25:
                             logs.pop(0)
                 code = proc.wait()
+                if code == 0 and task.kind in {"MP4 (wideo)", "MKV (wideo)", "WEBM (wideo)"}:
+                    for output in finalized_files:
+                        verify_video_contains_audio(output)
             finally:
                 task.process = None
             if task.cancelled or self.closing:
