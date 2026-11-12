@@ -98,18 +98,22 @@ def build_command(s: UniversalSelection, *, premium: bool, base=None, ffmpeg=Non
     cmd += ["--yes-playlist" if s.playlist else "--no-playlist", "--newline", "--progress",
             "--progress-template", "download:PROGRESS:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s",
             "--print", "after_move:FILE:%(filepath)s", "--paths", str(s.folder),
-            "-o", "%(title).180B [%(id)s].%(ext)s", "--continue", "--part", "--no-overwrites",
+            "-o", "%(title).180B [%(id)s].%(ext)s",
+            "--print", "after_move:FILE:%(filepath)s",
+            "--continue", "--part", "--no-overwrites",
             "--retries", "5", "--fragment-retries", "5"]
     ff = ffmpeg if ffmpeg is not None else tool("ffmpeg.exe") or tool("ffmpeg")
     if s.container in AUDIO:
         if not ff: raise FileNotFoundError("Konwersja audio wymaga ffmpeg.exe.")
         cmd += ["-f", "bestaudio/best", "-x", "--audio-format", s.container.lower()]
     else:
+        if not ff:
+            raise FileNotFoundError("Pobieranie wideo z dźwiękiem wymaga ffmpeg.exe.")
         if s.quality == "Najlepsza dostępna":
-            format_selector = "bv*+ba/b"
+            format_selector = "bv+ba/b"
         else:
             h = int(re.match(r"^(\d+)p", s.quality).group(1))
-            format_selector = f"bv*[height<={h}]+ba/b[height<={h}]/b"
+            format_selector = f"bv[height<={h}]+ba/b[height<={h}]/b[height<={h}]"
         cmd += ["-f", format_selector, "--merge-output-format", s.container.lower()]
         if s.container != "MKV":
             if not ff: raise FileNotFoundError("Konwersja wideo wymaga ffmpeg.exe.")
