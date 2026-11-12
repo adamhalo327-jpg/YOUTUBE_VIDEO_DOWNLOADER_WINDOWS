@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 APP_TITLE = "YOUTUBE VIDEO DOWNLOADER"
-APP_VERSION = "14.0 — TOKEN SHOP MISSIONS"
+APP_VERSION = "14.0.1 — AUDIO FIX"
 VALID_HOSTS = frozenset({
     "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com",
     "youtu.be", "www.youtu.be", "youtube-nocookie.com", "www.youtube-nocookie.com",
@@ -207,8 +207,8 @@ def make_download_command(
         raise ValueError("Liczba równoległych fragmentów musi być w zakresie 1–32.")
     get_tool = _tool or tool
     ffmpeg = get_tool("ffmpeg.exe") or get_tool("ffmpeg")
-    if kind != "MP4 (wideo)" and not ffmpeg:
-        raise FileNotFoundError("MP3 wymaga ffmpeg.exe — pobierz pełną paczkę EXE.")
+    if not ffmpeg:
+        raise FileNotFoundError("Do pobierania i łączenia obrazu z dźwiękiem wymagany jest ffmpeg.exe. Sprawdź instalację programu (MSIX).")
     if subtitles and not ffmpeg:
         raise FileNotFoundError("Konwersja napisów do SRT wymaga ffmpeg.exe.")
     cmd = (_base_command or yt_base_command)()
@@ -240,20 +240,20 @@ def make_download_command(
             cmd += ["--audio-quality", "0"]
     else:
         if quality == "Najlepsza dostępna":
-            fmt = "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
+            fmt = "bv[ext=mp4]+ba[ext=m4a]/bv+ba/b"
         else:
             height = int(re.search(r"\d+", quality).group())
-            fmt = (f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/"
-                   f"bv*[height<={height}]+ba/b[height<={height}]")
+            fmt = (f"bv[height<={height}][ext=mp4]+ba[ext=m4a]/"
+                   f"bv[height<={height}]+ba/b[height<={height}]")
         if kind == "MP4 (wideo)":
             cmd += ["-f", fmt, "--merge-output-format", "mp4"]
             if ffmpeg:
                 cmd += ["--recode-video", "mp4"]
         elif kind in {"MKV (wideo)", "WEBM (wideo)"}:
             if quality == "Najlepsza dostępna":
-                alt_fmt = "bv*+ba/b"
+                alt_fmt = "bv+ba/b"
             else:
-                alt_fmt = f"bv*[height<={height}]+ba/b[height<={height}]"
+                alt_fmt = f"bv[height<={height}]+ba/b[height<={height}]"
             container = "mkv" if kind == "MKV (wideo)" else "webm"
             cmd += ["-f", alt_fmt, "--merge-output-format", container, "--recode-video", container]
     if subtitles:
@@ -441,3 +441,26 @@ def update_engine(*, force: bool = False) -> str:
     finally:
         if tmp.exists():
             tmp.unlink()
+
+def verify_video_contains_audio(path: str | Path) -> None:
+    """Raise if a downloaded video is missing its audio stream."""
+    import subprocess
+    source = Path(path)
+    probe = tool("ffprobe.exe") or tool("ffprobe")
+    if not probe:
+        raise FileNotFoundError("Brak ffprobe.exe: nie można potwierdzić ścieżki audio.")
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    run = subprocess.run(
+        [probe, "-v", "error", "-show_entries", "stream=codec_type", "-of", "json", str(source)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=35, creationflags=flags,
+    )
+    if run.returncode:
+        raise RuntimeError("FFprobe nie mógł sprawdzić pliku: " + (run.stderr or str(run.returncode))[-300:])
+    try:
+        streams = json.loads(run.stdout).get("streams", [])
+    except (ValueError, AttributeError) as exc:
+        raise RuntimeError("FFprobe nie zwrócił prawidłowej listy strumieni.") from exc
+    kinds = {x.get("codec_type") for x in streams if isinstance(x, dict)}
+    if "video" not in kinds or "audio" not in kinds:
+        raise RuntimeError("Pobrany film nie ma obrazu lub ścieżki audio. Sprawdź FFmpeg i ponów pobieranie do nowego pliku.")
